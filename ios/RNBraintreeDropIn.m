@@ -14,11 +14,7 @@ RCT_EXPORT_METHOD(show:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)r
 {
 
     if([options[@"darkTheme"] boolValue]){
-        if (@available(iOS 13.0, *)) {
-            BTUIKAppearance.sharedInstance.colorScheme = BTUIKColorSchemeDynamic;
-        } else {
-            BTUIKAppearance.sharedInstance.colorScheme = BTUIKColorSchemeDark;
-        }
+        BTUIKAppearance.sharedInstance.colorScheme = BTUIKColorSchemeDark;
     } else {
         BTUIKAppearance.sharedInstance.colorScheme = BTUIKColorSchemeLight;
     }
