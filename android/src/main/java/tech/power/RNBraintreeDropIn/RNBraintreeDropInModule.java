@@ -48,7 +48,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       return;
     }
 
-    DropInRequest dropInRequest = new DropInRequest().clientToken(options.getString("clientToken"));
+    DropInRequest dropInRequest = new DropInRequest().clientToken(options.getString("clientToken")).cardholderNameStatus(CardForm.FIELD_REQUIRED);
 
     if(options.hasKey("vaultManager")) {
       dropInRequest.vaultManager(options.getBoolean("vaultManager"));
