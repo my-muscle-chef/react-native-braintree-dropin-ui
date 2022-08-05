@@ -252,6 +252,7 @@ BraintreeDropIn.show({
   googlePay: true,
   applePay: true,
   vaultManager: true,
+  payPal: true, 
   cardDisabled: false,
   darkTheme: true,
 })
@@ -284,6 +285,7 @@ BraintreeDropIn.show({
   googlePay: true,
   applePay: true,
   vaultManager: true,
+  payPal: true, 
   cardDisabled: false,
   darkTheme: true,
 })
@@ -306,6 +308,13 @@ BraintreeDropIn.show({
   boldFontFamily: 'Averta-Semibold',
 })
 ```
+
+### Potential Fix 
+
+This version contains updated BraintreeDropIn 5.+. BraintreeDropIn 5.0.2 contains some security fixes that resolves Play store rejection fix. Read more - 
+
+Unsafe implementation of the HostnameVerifier interface - vulnerability ( https://github.com/braintree/braintree-android-drop-in/issues/208 )
+
 [1]:  http://guides.cocoapods.org/using/using-cocoapods.html
 [2]:  https://github.com/braintree/braintree-ios-drop-in
 [3]:  https://github.com/braintree/braintree-android-drop-in

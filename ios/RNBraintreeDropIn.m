@@ -97,6 +97,10 @@ RCT_EXPORT_METHOD(show:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)r
     }else{
         request.applePayDisabled = YES;
     }
+    
+    if(![options[@"payPal"] boolValue]){ //disable paypal
+        request.paypalDisabled = YES;
+    }
 
     BTDropInController *dropIn = [[BTDropInController alloc] initWithAuthorization:clientToken request:request handler:^(BTDropInController * _Nonnull controller, BTDropInResult * _Nullable result, NSError * _Nullable error) {
             [self.reactRoot dismissViewControllerAnimated:YES completion:nil];
@@ -128,7 +132,12 @@ RCT_EXPORT_METHOD(show:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)r
                 }
             }
         }];
-    [self.reactRoot presentViewController:dropIn animated:YES completion:nil];
+
+    if (dropIn != nil) {
+        [self.reactRoot presentViewController:dropIn animated:YES completion:nil];
+    } else {
+        reject(@"INVALID_CLIENT_TOKEN", @"The client token seems invalid", nil);
+    }
 }
 
 - (void)paymentAuthorizationViewController:(PKPaymentAuthorizationViewController *)controller
