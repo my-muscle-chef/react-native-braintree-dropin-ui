@@ -17,11 +17,11 @@ Pod::Spec.new do |s|
   s.dependency    'Braintree'
   s.dependency    'BraintreeDropIn'
   s.dependency    'Braintree/DataCollector'
-  s.dependency    "Braintree/ApplePay", "~> 5.9"
-  s.dependency    "Braintree/Card", "~> 5.9"
-  s.dependency    "Braintree/Core", "~> 5.9"
-  s.dependency    "Braintree/UnionPay", "~> 5.9"
-  s.dependency    "Braintree/PayPal", "~> 5.9"
-  s.dependency    "Braintree/ThreeDSecure", "~> 5.9"
-  s.dependency    "Braintree/Venmo", "~> 5.9"
+  s.dependency    "Braintree/ApplePay", "~> 5.12"
+  s.dependency    "Braintree/Card", "~> 5.12"
+  s.dependency    "Braintree/Core", "~> 5.12"
+  s.dependency    "Braintree/UnionPay", "~> 5.12"
+  s.dependency    "Braintree/PayPal", "~> 5.12"
+  s.dependency    "Braintree/ThreeDSecure", "~> 5.12"
+  s.dependency    "Braintree/Venmo", "~> 5.12"
 end
