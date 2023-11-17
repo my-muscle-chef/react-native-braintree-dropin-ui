@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentActivity;
 
 import com.braintreepayments.api.BraintreeClient;
+import com.braintreepayments.api.DataCollector;
 import com.braintreepayments.api.Card;
 import com.braintreepayments.api.CardClient;
 import com.braintreepayments.api.DropInClient;
@@ -88,7 +89,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     }
 
     if(options.hasKey("cardDisabled")) {
-      dropInRequest.setCardDisabled(true);
+      dropInRequest.setCardDisabled(options.getBoolean("cardDisabled"));
     }
 
     if (options.hasKey("threeDSecure")) {
@@ -147,6 +148,19 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       }
     });
     dropInClient.launchDropIn(dropInRequest);
+  }
+
+  @ReactMethod
+  public void getDeviceData(final String clientToken, final Promise promise) {
+    BraintreeClient braintreeClient = new BraintreeClient(getCurrentActivity(), clientToken);
+    DataCollector dataCollector = new DataCollector(braintreeClient);
+    dataCollector.collectDeviceData(getCurrentActivity(), (deviceData, error) -> {
+      if (error != null) {
+        promise.reject("ERROR", "Error collecting device data");
+      } else {
+        promise.resolve(deviceData);
+      }
+    });
   }
 
   @ReactMethod

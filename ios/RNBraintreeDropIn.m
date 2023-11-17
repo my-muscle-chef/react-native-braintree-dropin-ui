@@ -142,6 +142,15 @@ RCT_EXPORT_METHOD(show:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)r
     }
 }
 
+RCT_EXPORT_METHOD(getDeviceData:(NSString*)clientToken resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    BTAPIClient *braintreeClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
+    BTDataCollector *dataCollector = [[BTDataCollector alloc] initWithAPIClient:braintreeClient];
+    [dataCollector collectDeviceData:^(NSString * _Nonnull deviceData) {
+        resolve(deviceData);
+    }];
+}
+
 RCT_EXPORT_METHOD(fetchMostRecentPaymentMethod:(NSString*)clientToken
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
