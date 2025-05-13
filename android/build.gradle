@@ -12,12 +12,12 @@ buildscript {
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 34
     buildToolsVersion '30.0.2'
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 33
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0"
     }
@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.braintreepayments.api:drop-in:6.16.0'
+    implementation 'com.braintreepayments.api:drop-in:6.17.0'
     implementation 'com.facebook.react:react-native:+'
 }
 
