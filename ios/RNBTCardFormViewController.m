@@ -21,7 +21,6 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 @property (nonatomic, strong) UILabel *cardTypeLabel;
 @property (nonatomic, strong) UITextField *expiryField;
 @property (nonatomic, strong) UITextField *cvvField;
-@property (nonatomic, strong) UITextField *postalCodeField;
 @property (nonatomic, strong) UIButton *submitButton;
 @property (nonatomic, strong) UIActivityIndicatorView *activityIndicator;
 
@@ -85,8 +84,6 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 
     self.expiryField     = [self makeField:@"MM / YY"     keyboard:UIKeyboardTypeNumberPad  secure:NO];
     self.cvvField        = [self makeField:@"CVV"         keyboard:UIKeyboardTypeNumberPad  secure:YES];
-    self.postalCodeField = [self makeField:@"Postal Code" keyboard:UIKeyboardTypeDefault    secure:NO];
-
     [self.expiryField addTarget:self action:@selector(expiryChanged:) forControlEvents:UIControlEventEditingChanged];
 
     self.submitButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -102,7 +99,6 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
         cardNumberRow,
         self.expiryField,
         self.cvvField,
-        self.postalCodeField,
         self.submitButton,
     ]];
     stack.axis = UILayoutConstraintAxisVertical;
@@ -317,8 +313,6 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     card.expirationMonth = [NSString stringWithFormat:@"%02ld", (long)month];
     card.expirationYear  = yearStr;
     card.cvv             = cvv;
-    NSString *postal = self.postalCodeField.text;
-    if (postal.length > 0) card.postalCode = postal;
 
     __weak typeof(self) weakSelf = self;
     [cardClient tokenizeCard:card completion:^(BTCardNonce * _Nullable nonce, NSError * _Nullable error) {
