@@ -271,7 +271,7 @@ RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolv
                 NSMutableDictionary* result = [NSMutableDictionary new];
                 [result setObject:nonce.nonce forKey:@"nonce"];
                 [result setObject:nonce.type forKey:@"type"];
-                [result setObject:nonce.localizedDescription ?: @"" forKey:@"description"];
+                [result setObject:nonce.lastFour ?: @"" forKey:@"description"];
                 [result setObject:[NSNumber numberWithBool:nonce.isDefault] forKey:@"isDefault"];
                 [result setObject:self.deviceDataCollector ?: @"" forKey:@"deviceData"];
                 self.resolve(result);
