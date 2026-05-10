@@ -283,6 +283,9 @@ RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolv
 
     UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:cardFormVC];
     navController.modalPresentationStyle = UIModalPresentationFormSheet;
+    navController.overrideUserInterfaceStyle = [options[@"darkTheme"] boolValue]
+        ? UIUserInterfaceStyleDark
+        : UIUserInterfaceStyleLight;
     UIViewController *rootViewController = RCTPresentedViewController();
     [rootViewController presentViewController:navController animated:YES completion:nil];
 }
