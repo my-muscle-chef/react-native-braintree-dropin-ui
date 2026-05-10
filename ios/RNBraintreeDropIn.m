@@ -1,4 +1,5 @@
 #import "RNBraintreeDropIn.h"
+#import "BTCardFormViewController.h"
 #import <React/RCTUtils.h>
 #import "BTThreeDSecureRequest.h"
 #import "BraintreePayPal.h"
@@ -251,6 +252,7 @@ RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolv
 
     self.resolve = resolve;
     self.reject = reject;
+    self.deviceDataCollector = @"";
 
     BTAPIClient *apiClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
     self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:apiClient];
@@ -258,49 +260,31 @@ RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolv
         self.deviceDataCollector = deviceData;
     }];
 
-    BTDropInRequest *request = [[BTDropInRequest alloc] init];
-    request.applePayDisabled = YES;
-    request.paypalDisabled = YES;
-
-    NSDictionary* threeDSecureOptions = options[@"threeDSecure"];
-    if (threeDSecureOptions) {
-        NSNumber* threeDSecureAmount = threeDSecureOptions[@"amount"];
-        if (!threeDSecureAmount) {
-            reject(@"NO_3DS_AMOUNT", @"You must provide an amount for 3D Secure", nil);
-            return;
-        }
-        BTThreeDSecureRequest *threeDSecureRequest = [[BTThreeDSecureRequest alloc] init];
-        threeDSecureRequest.amount = [NSDecimalNumber decimalNumberWithString:threeDSecureAmount.stringValue];
-        request.threeDSecureRequest = threeDSecureRequest;
-    }
-
-    BTDropInController *dropIn = [[BTDropInController alloc] initWithAuthorization:clientToken request:request handler:^(BTDropInController * _Nonnull controller, BTDropInResult * _Nullable result, NSError * _Nullable error) {
-        [self.reactRoot dismissViewControllerAnimated:YES completion:nil];
-        if (error != nil) {
-            reject(error.localizedDescription, error.localizedDescription, error);
-        } else if (result.canceled) {
-            reject(@"USER_CANCELLATION", @"The user cancelled", nil);
-        } else {
-            if (threeDSecureOptions && [result.paymentMethod isKindOfClass:[BTCardNonce class]]) {
-                BTCardNonce *cardNonce = (BTCardNonce *)result.paymentMethod;
-                if (!cardNonce.threeDSecureInfo.liabilityShiftPossible && cardNonce.threeDSecureInfo.wasVerified) {
-                    reject(@"3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", @"3D Secure liability cannot be shifted", nil);
-                } else if (!cardNonce.threeDSecureInfo.liabilityShifted && cardNonce.threeDSecureInfo.wasVerified) {
-                    reject(@"3DSECURE_LIABILITY_NOT_SHIFTED", @"3D Secure liability was not shifted", nil);
-                } else {
-                    [[self class] resolvePayment:result deviceData:self.deviceDataCollector resolver:resolve];
-                }
+    BTCardFormViewController *cardFormVC = [[BTCardFormViewController alloc]
+        initWithAPIClient:apiClient
+        completion:^(BTCardNonce * _Nullable nonce, NSError * _Nullable error) {
+            if (error) {
+                self.reject(error.localizedDescription, error.localizedDescription, error);
+            } else if (!nonce) {
+                self.reject(@"USER_CANCELLATION", @"The user cancelled", nil);
             } else {
-                [[self class] resolvePayment:result deviceData:self.deviceDataCollector resolver:resolve];
+                NSMutableDictionary* result = [NSMutableDictionary new];
+                [result setObject:nonce.nonce forKey:@"nonce"];
+                [result setObject:nonce.type forKey:@"type"];
+                [result setObject:nonce.localizedDescription ?: @"" forKey:@"description"];
+                [result setObject:[NSNumber numberWithBool:nonce.isDefault] forKey:@"isDefault"];
+                [result setObject:self.deviceDataCollector ?: @"" forKey:@"deviceData"];
+                self.resolve(result);
             }
         }
-    }];
+        onCancel:^{
+            self.reject(@"USER_CANCELLATION", @"The user cancelled", nil);
+        }];
 
-    if (dropIn != nil) {
-        [self.reactRoot presentViewController:dropIn animated:YES completion:nil];
-    } else {
-        reject(@"INVALID_CLIENT_TOKEN", @"The client token seems invalid", nil);
-    }
+    UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:cardFormVC];
+    navController.modalPresentationStyle = UIModalPresentationFormSheet;
+    UIViewController *rootViewController = RCTPresentedViewController();
+    [rootViewController presentViewController:navController animated:YES completion:nil];
 }
 
 RCT_EXPORT_METHOD(getDeviceData:(NSString*)clientToken resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
