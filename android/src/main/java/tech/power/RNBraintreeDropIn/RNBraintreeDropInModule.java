@@ -30,6 +30,11 @@ import com.braintreepayments.api.GooglePayClient;
 import com.braintreepayments.api.GooglePayLauncher;
 import com.braintreepayments.api.GooglePayNonce;
 import com.braintreepayments.api.GooglePayRequest;
+import com.braintreepayments.api.PayPalAccountNonce;
+import com.braintreepayments.api.PayPalCheckoutRequest;
+import com.braintreepayments.api.PayPalClient;
+import com.braintreepayments.api.PayPalLauncher;
+import com.braintreepayments.api.PayPalVaultRequest;
 import com.google.android.gms.wallet.TransactionInfo;
 import com.google.android.gms.wallet.WalletConstants;
 
@@ -44,6 +49,11 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
   private static GooglePayLauncher googlePayLauncher = null;
   private static Promise pendingGooglePayPromise = null;
   private static String pendingGooglePayDeviceData = null;
+
+  private static PayPalClient payPalClient = null;
+  private static PayPalLauncher payPalLauncher = null;
+  private static Promise pendingPayPalPromise = null;
+  private static String pendingPayPalDeviceData = null;
 
   public static void initGooglePayLauncher(FragmentActivity activity) {
     googlePayLauncher = new GooglePayLauncher(activity, paymentAuthResult -> {
@@ -74,6 +84,41 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
           promise.resolve(jsResult);
         } else {
           promise.reject("NO_NONCE", "No Google Pay nonce returned");
+        }
+      });
+    });
+  }
+
+  public static void initPayPalLauncher(FragmentActivity activity) {
+    payPalLauncher = new PayPalLauncher(activity, paymentAuthResult -> {
+      Promise promise = pendingPayPalPromise;
+      pendingPayPalPromise = null;
+      if (promise == null) return;
+
+      if (payPalClient == null) {
+        promise.reject("PAYPAL_CLIENT_UNINITIALIZED", "PayPal client is not initialized");
+        return;
+      }
+
+      payPalClient.tokenize(paymentAuthResult, (nonce, error) -> {
+        if (error != null) {
+          if (error instanceof UserCanceledException) {
+            promise.reject("USER_CANCELLATION", "The user cancelled");
+          } else {
+            promise.reject("PAYPAL_ERROR", error.getMessage());
+          }
+        } else if (nonce != null) {
+          WritableMap jsResult = Arguments.createMap();
+          jsResult.putString("nonce", nonce.getString());
+          jsResult.putString("type", "PayPal");
+          String email = nonce.getEmail();
+          jsResult.putString("description", email != null ? email : "PayPal");
+          jsResult.putBoolean("isDefault", nonce.isDefault());
+          jsResult.putString("deviceData", pendingPayPalDeviceData != null ? pendingPayPalDeviceData : "");
+          pendingPayPalDeviceData = null;
+          promise.resolve(jsResult);
+        } else {
+          promise.reject("NO_NONCE", "No PayPal nonce returned");
         }
       });
     });
@@ -248,6 +293,141 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       }
       googlePayLauncher.launch(paymentAuthRequest);
     });
+  }
+
+  @ReactMethod
+  public void showPayPal(final ReadableMap options, final Promise promise) {
+    if (!options.hasKey("clientToken")) {
+      promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
+      return;
+    }
+
+    if (payPalLauncher == null) {
+      promise.reject(
+        "PAYPAL_LAUNCHER_UNINITIALIZED",
+        "Did you forget to call RNBraintreeDropInModule.initPayPalLauncher(this) in MainActivity.onCreate?"
+      );
+      return;
+    }
+
+    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
+    if (currentActivity == null) {
+      promise.reject("NO_ACTIVITY", "There is no current activity");
+      return;
+    }
+
+    String token = options.getString("clientToken");
+    BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
+    payPalClient = new PayPalClient(braintreeClient);
+
+    DataCollector dataCollector = new DataCollector(braintreeClient);
+    dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
+      pendingPayPalDeviceData = deviceData;
+    });
+
+    Object payPalRequest;
+    if (options.hasKey("amount")) {
+      PayPalCheckoutRequest checkoutRequest = new PayPalCheckoutRequest(options.getString("amount"));
+      if (options.hasKey("currencyCode")) {
+        checkoutRequest.setCurrencyCode(options.getString("currencyCode"));
+      }
+      payPalRequest = checkoutRequest;
+    } else {
+      payPalRequest = new PayPalVaultRequest();
+    }
+
+    pendingPayPalPromise = promise;
+
+    if (payPalRequest instanceof PayPalCheckoutRequest) {
+      payPalClient.createPaymentAuthRequest(currentActivity, (PayPalCheckoutRequest) payPalRequest, (paymentAuthRequest, error) -> {
+        if (error != null) {
+          pendingPayPalPromise = null;
+          promise.reject("PAYPAL_ERROR", error.getMessage());
+          return;
+        }
+        payPalLauncher.launch(paymentAuthRequest);
+      });
+    } else {
+      payPalClient.createPaymentAuthRequest(currentActivity, (PayPalVaultRequest) payPalRequest, (paymentAuthRequest, error) -> {
+        if (error != null) {
+          pendingPayPalPromise = null;
+          promise.reject("PAYPAL_ERROR", error.getMessage());
+          return;
+        }
+        payPalLauncher.launch(paymentAuthRequest);
+      });
+    }
+  }
+
+  @ReactMethod
+  public void showCardForm(final ReadableMap options, final Promise promise) {
+    if (!options.hasKey("clientToken")) {
+      promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
+      return;
+    }
+
+    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
+    if (currentActivity == null) {
+      promise.reject("NO_ACTIVITY", "There is no current activity");
+      return;
+    }
+
+    if (dropInClient == null) {
+      promise.reject(
+        "DROP_IN_CLIENT_UNINITIALIZED",
+        "Did you forget to call RNBraintreeDropInModule.initDropInClient(this) in MainActivity.onCreate?"
+      );
+      return;
+    }
+
+    DropInRequest dropInRequest = new DropInRequest();
+    dropInRequest.setGooglePayDisabled(true);
+    dropInRequest.setPayPalDisabled(true);
+    dropInRequest.setVaultManagerEnabled(false);
+
+    if (options.hasKey("threeDSecure")) {
+      final ReadableMap threeDSecureOptions = options.getMap("threeDSecure");
+      if (threeDSecureOptions == null || !threeDSecureOptions.hasKey("amount")) {
+        promise.reject("NO_3DS_AMOUNT", "You must provide an amount for 3D Secure");
+        return;
+      }
+      ThreeDSecureRequest threeDSecureRequest = new ThreeDSecureRequest();
+      threeDSecureRequest.setAmount(threeDSecureOptions.getString("amount"));
+      dropInRequest.setThreeDSecureRequest(threeDSecureRequest);
+    }
+
+    clientToken = options.getString("clientToken");
+
+    dropInClient.setListener(new DropInListener() {
+      @Override
+      public void onDropInSuccess(@NonNull DropInResult dropInResult) {
+        PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
+
+        if (options.hasKey("threeDSecure") && paymentMethodNonce instanceof CardNonce) {
+          CardNonce cardNonce = (CardNonce) paymentMethodNonce;
+          ThreeDSecureInfo threeDSecureInfo = cardNonce.getThreeDSecureInfo();
+          if (!threeDSecureInfo.isLiabilityShiftPossible()) {
+            promise.reject("3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", "3D Secure liability cannot be shifted");
+          } else if (!threeDSecureInfo.isLiabilityShifted()) {
+            promise.reject("3DSECURE_LIABILITY_NOT_SHIFTED", "3D Secure liability was not shifted");
+          } else {
+            resolvePayment(dropInResult, promise);
+          }
+        } else {
+          resolvePayment(dropInResult, promise);
+        }
+      }
+
+      @Override
+      public void onDropInFailure(@NonNull Exception exception) {
+        if (exception instanceof UserCanceledException) {
+          promise.reject("USER_CANCELLATION", "The user cancelled");
+        } else {
+          promise.reject(exception.getMessage(), exception.getMessage());
+        }
+      }
+    });
+    dropInClient.launchDropIn(dropInRequest);
   }
 
   @ReactMethod

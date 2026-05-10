@@ -1,6 +1,7 @@
 #import "RNBraintreeDropIn.h"
 #import <React/RCTUtils.h>
 #import "BTThreeDSecureRequest.h"
+#import "BraintreePayPal.h"
 
 @implementation RNBraintreeDropIn
 
@@ -188,6 +189,119 @@ RCT_EXPORT_METHOD(showApplePay:(NSDictionary*)options resolver:(RCTPromiseResolv
 
     UIViewController *rootViewController = RCTPresentedViewController();
     [rootViewController presentViewController:self.viewController animated:YES completion:nil];
+}
+
+RCT_EXPORT_METHOD(showPayPal:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSString* clientToken = options[@"clientToken"];
+    if (!clientToken) {
+        reject(@"NO_CLIENT_TOKEN", @"You must provide a client token", nil);
+        return;
+    }
+
+    self.resolve = resolve;
+    self.reject = reject;
+    self.deviceDataCollector = @"";
+
+    self.braintreeClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
+
+    self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:self.braintreeClient];
+    [self.dataCollector collectDeviceData:^(NSString * _Nonnull deviceData) {
+        self.deviceDataCollector = deviceData;
+    }];
+
+    __block BTPayPalClient *payPalClient = [[BTPayPalClient alloc] initWithAPIClient:self.braintreeClient];
+
+    BTPayPalRequest *payPalRequest;
+    NSString *amount = options[@"amount"];
+    if (amount) {
+        BTPayPalCheckoutRequest *checkoutRequest = [[BTPayPalCheckoutRequest alloc] initWithAmount:amount];
+        if (options[@"currencyCode"]) {
+            checkoutRequest.currencyCode = options[@"currencyCode"];
+        }
+        payPalRequest = checkoutRequest;
+    } else {
+        payPalRequest = [[BTPayPalVaultRequest alloc] init];
+    }
+
+    [payPalClient tokenizePayPalAccount:payPalRequest completion:^(BTPayPalAccountNonce * _Nullable nonce, NSError * _Nullable error) {
+        payPalClient = nil;
+        if (error) {
+            self.reject(error.localizedDescription, error.localizedDescription, error);
+        } else if (!nonce) {
+            self.reject(@"USER_CANCELLATION", @"The user cancelled", nil);
+        } else {
+            NSMutableDictionary* result = [NSMutableDictionary new];
+            [result setObject:nonce.nonce forKey:@"nonce"];
+            [result setObject:@"PayPal" forKey:@"type"];
+            [result setObject:nonce.email ?: @"PayPal" forKey:@"description"];
+            [result setObject:[NSNumber numberWithBool:nonce.isDefault] forKey:@"isDefault"];
+            [result setObject:self.deviceDataCollector ?: @"" forKey:@"deviceData"];
+            self.resolve(result);
+        }
+    }];
+}
+
+RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSString* clientToken = options[@"clientToken"];
+    if (!clientToken) {
+        reject(@"NO_CLIENT_TOKEN", @"You must provide a client token", nil);
+        return;
+    }
+
+    self.resolve = resolve;
+    self.reject = reject;
+
+    BTAPIClient *apiClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
+    self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:apiClient];
+    [self.dataCollector collectDeviceData:^(NSString * _Nonnull deviceData) {
+        self.deviceDataCollector = deviceData;
+    }];
+
+    BTDropInRequest *request = [[BTDropInRequest alloc] init];
+    request.applePayDisabled = YES;
+    request.paypalDisabled = YES;
+
+    NSDictionary* threeDSecureOptions = options[@"threeDSecure"];
+    if (threeDSecureOptions) {
+        NSNumber* threeDSecureAmount = threeDSecureOptions[@"amount"];
+        if (!threeDSecureAmount) {
+            reject(@"NO_3DS_AMOUNT", @"You must provide an amount for 3D Secure", nil);
+            return;
+        }
+        BTThreeDSecureRequest *threeDSecureRequest = [[BTThreeDSecureRequest alloc] init];
+        threeDSecureRequest.amount = [NSDecimalNumber decimalNumberWithString:threeDSecureAmount.stringValue];
+        request.threeDSecureRequest = threeDSecureRequest;
+    }
+
+    BTDropInController *dropIn = [[BTDropInController alloc] initWithAuthorization:clientToken request:request handler:^(BTDropInController * _Nonnull controller, BTDropInResult * _Nullable result, NSError * _Nullable error) {
+        [self.reactRoot dismissViewControllerAnimated:YES completion:nil];
+        if (error != nil) {
+            reject(error.localizedDescription, error.localizedDescription, error);
+        } else if (result.canceled) {
+            reject(@"USER_CANCELLATION", @"The user cancelled", nil);
+        } else {
+            if (threeDSecureOptions && [result.paymentMethod isKindOfClass:[BTCardNonce class]]) {
+                BTCardNonce *cardNonce = (BTCardNonce *)result.paymentMethod;
+                if (!cardNonce.threeDSecureInfo.liabilityShiftPossible && cardNonce.threeDSecureInfo.wasVerified) {
+                    reject(@"3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", @"3D Secure liability cannot be shifted", nil);
+                } else if (!cardNonce.threeDSecureInfo.liabilityShifted && cardNonce.threeDSecureInfo.wasVerified) {
+                    reject(@"3DSECURE_LIABILITY_NOT_SHIFTED", @"3D Secure liability was not shifted", nil);
+                } else {
+                    [[self class] resolvePayment:result deviceData:self.deviceDataCollector resolver:resolve];
+                }
+            } else {
+                [[self class] resolvePayment:result deviceData:self.deviceDataCollector resolver:resolve];
+            }
+        }
+    }];
+
+    if (dropIn != nil) {
+        [self.reactRoot presentViewController:dropIn animated:YES completion:nil];
+    } else {
+        reject(@"INVALID_CLIENT_TOKEN", @"The client token seems invalid", nil);
+    }
 }
 
 RCT_EXPORT_METHOD(getDeviceData:(NSString*)clientToken resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
