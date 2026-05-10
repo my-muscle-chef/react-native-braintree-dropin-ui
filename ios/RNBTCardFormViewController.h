@@ -8,6 +8,8 @@ typedef void (^BTCardFormCancel)(void);
 @interface RNBTCardFormViewController : UIViewController
 
 - (instancetype)initWithAPIClient:(BTAPIClient *)apiClient
+                       fontFamily:(NSString * _Nullable)fontFamily
+                   boldFontFamily:(NSString * _Nullable)boldFontFamily
                        completion:(BTCardFormCompletion)completion
                          onCancel:(BTCardFormCancel)onCancel;
 

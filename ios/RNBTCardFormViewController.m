@@ -14,6 +14,8 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 @interface RNBTCardFormViewController () <UITextFieldDelegate>
 
 @property (nonatomic, strong) BTAPIClient *apiClient;
+@property (nonatomic, copy) NSString *fontFamily;
+@property (nonatomic, copy) NSString *boldFontFamily;
 @property (nonatomic, copy) BTCardFormCompletion completion;
 @property (nonatomic, copy) BTCardFormCancel onCancel;
 
@@ -31,16 +33,40 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 @implementation RNBTCardFormViewController
 
 - (instancetype)initWithAPIClient:(BTAPIClient *)apiClient
+                       fontFamily:(NSString * _Nullable)fontFamily
+                   boldFontFamily:(NSString * _Nullable)boldFontFamily
                        completion:(BTCardFormCompletion)completion
                          onCancel:(BTCardFormCancel)onCancel {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
         _apiClient = apiClient;
+        _fontFamily = [fontFamily copy];
+        _boldFontFamily = [boldFontFamily copy];
         _completion = [completion copy];
         _onCancel = [onCancel copy];
         _detectedCardNetwork = RNBTCardNetworkUnknown;
     }
     return self;
+}
+
+- (UIFont *)regularFontOfSize:(CGFloat)size {
+    if (self.fontFamily) {
+        UIFont *font = [UIFont fontWithName:self.fontFamily size:size];
+        if (font) return font;
+    }
+    return [UIFont systemFontOfSize:size];
+}
+
+- (UIFont *)boldFontOfSize:(CGFloat)size {
+    if (self.boldFontFamily) {
+        UIFont *font = [UIFont fontWithName:self.boldFontFamily size:size];
+        if (font) return font;
+    }
+    if (self.fontFamily) {
+        UIFont *font = [UIFont fontWithName:self.fontFamily size:size];
+        if (font) return font;
+    }
+    return [UIFont boldSystemFontOfSize:size];
 }
 
 - (void)viewDidLoad {
@@ -65,7 +91,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 
     // Card type badge as right accessory of card number field
     self.cardTypeBadge = [[UILabel alloc] initWithFrame:CGRectMake(8, 15, 58, 22)];
-    self.cardTypeBadge.font = [UIFont boldSystemFontOfSize:11];
+    self.cardTypeBadge.font = [self boldFontOfSize:11];
     self.cardTypeBadge.textColor = [UIColor whiteColor];
     self.cardTypeBadge.textAlignment = NSTextAlignmentCenter;
     self.cardTypeBadge.layer.cornerRadius = 5;
@@ -106,7 +132,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     [self.submitButton setTitle:@"Add Card" forState:UIControlStateNormal];
     self.submitButton.backgroundColor = [UIColor systemBlueColor];
     [self.submitButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.submitButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    self.submitButton.titleLabel.font = [self boldFontOfSize:17];
     self.submitButton.layer.cornerRadius = 14;
     self.submitButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.submitButton addTarget:self action:@selector(submitTapped) forControlEvents:UIControlEventTouchUpInside];
@@ -178,7 +204,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     field.placeholder = placeholder;
     field.keyboardType = keyboard;
     field.borderStyle = UITextBorderStyleNone;
-    field.font = [UIFont systemFontOfSize:16];
+    field.font = [self regularFontOfSize:16];
     field.autocorrectionType = UITextAutocorrectionTypeNo;
     field.secureTextEntry = secure;
     field.translatesAutoresizingMaskIntoConstraints = NO;

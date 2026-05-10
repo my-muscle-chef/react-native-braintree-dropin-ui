@@ -262,6 +262,8 @@ RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolv
 
     RNBTCardFormViewController *cardFormVC = [[RNBTCardFormViewController alloc]
         initWithAPIClient:apiClient
+        fontFamily:options[@"fontFamily"]
+        boldFontFamily:options[@"boldFontFamily"]
         completion:^(BTCardNonce * _Nullable nonce, NSError * _Nullable error) {
             if (error) {
                 self.reject(error.localizedDescription, error.localizedDescription, error);
