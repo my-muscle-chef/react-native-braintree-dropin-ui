@@ -210,7 +210,7 @@ RCT_EXPORT_METHOD(showPayPal:(NSDictionary*)options resolver:(RCTPromiseResolveB
         self.deviceDataCollector = deviceData;
     }];
 
-    __block BTPayPalClient *payPalClient = [[BTPayPalClient alloc] initWithAPIClient:self.braintreeClient];
+    __block BTPayPalDriver *payPalClient = [[BTPayPalDriver alloc] initWithAPIClient:self.braintreeClient];
 
     BTPayPalRequest *payPalRequest;
     NSString *amount = options[@"amount"];
