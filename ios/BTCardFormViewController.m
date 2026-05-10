@@ -1,7 +1,7 @@
-#import "BTCardFormViewController.h"
+#import "RNBTCardFormViewController.h"
 #import "BraintreeDropIn.h"
 
-@interface BTCardFormViewController () <UITextFieldDelegate>
+@interface RNBTCardFormViewController () <UITextFieldDelegate>
 
 @property (nonatomic, strong) BTAPIClient *apiClient;
 @property (nonatomic, copy) BTCardFormCompletion completion;
@@ -16,7 +16,7 @@
 
 @end
 
-@implementation BTCardFormViewController
+@implementation RNBTCardFormViewController
 
 - (instancetype)initWithAPIClient:(BTAPIClient *)apiClient
                        completion:(BTCardFormCompletion)completion

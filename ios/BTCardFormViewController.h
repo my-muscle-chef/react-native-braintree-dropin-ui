@@ -5,7 +5,7 @@
 typedef void (^BTCardFormCompletion)(BTCardNonce * _Nullable nonce, NSError * _Nullable error);
 typedef void (^BTCardFormCancel)(void);
 
-@interface BTCardFormViewController : UIViewController
+@interface RNBTCardFormViewController : UIViewController
 
 - (instancetype)initWithAPIClient:(BTAPIClient *)apiClient
                        completion:(BTCardFormCompletion)completion

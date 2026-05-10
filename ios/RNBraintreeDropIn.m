@@ -1,5 +1,5 @@
 #import "RNBraintreeDropIn.h"
-#import "BTCardFormViewController.h"
+#import "RNBTCardFormViewController.h"
 #import <React/RCTUtils.h>
 #import "BTThreeDSecureRequest.h"
 #import "BraintreePayPal.h"
@@ -260,7 +260,7 @@ RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolv
         self.deviceDataCollector = deviceData;
     }];
 
-    BTCardFormViewController *cardFormVC = [[BTCardFormViewController alloc]
+    RNBTCardFormViewController *cardFormVC = [[RNBTCardFormViewController alloc]
         initWithAPIClient:apiClient
         completion:^(BTCardNonce * _Nullable nonce, NSError * _Nullable error) {
             if (error) {
