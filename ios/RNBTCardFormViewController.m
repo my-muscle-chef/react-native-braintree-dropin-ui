@@ -51,83 +51,125 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 #pragma mark - UI Setup
 
 - (void)setupUI {
-    self.title = @"Add Card";
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
+    self.title = @"Card Details";
+    self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
 
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
         target:self
         action:@selector(cancelTapped)];
 
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
-        initWithTitle:@"Add Card"
-        style:UIBarButtonItemStyleDone
-        target:self
-        action:@selector(submitTapped)];
-
-    // Card number field with inline badge as right accessory
+    // Fields (borderless — container provides the visual grouping)
     self.cardNumberField = [self makeField:@"Card Number" keyboard:UIKeyboardTypeNumberPad secure:NO];
     [self.cardNumberField addTarget:self action:@selector(cardNumberChanged:) forControlEvents:UIControlEventEditingChanged];
 
-    self.cardTypeBadge = [[UILabel alloc] initWithFrame:CGRectMake(6, 10, 66, 22)];
+    // Card type badge as right accessory of card number field
+    self.cardTypeBadge = [[UILabel alloc] initWithFrame:CGRectMake(8, 15, 58, 22)];
     self.cardTypeBadge.font = [UIFont boldSystemFontOfSize:11];
     self.cardTypeBadge.textColor = [UIColor whiteColor];
     self.cardTypeBadge.textAlignment = NSTextAlignmentCenter;
-    self.cardTypeBadge.layer.cornerRadius = 4;
+    self.cardTypeBadge.layer.cornerRadius = 5;
     self.cardTypeBadge.layer.masksToBounds = YES;
     self.cardTypeBadge.hidden = YES;
-
-    UIView *badgeWrapper = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 78, 42)];
+    UIView *badgeWrapper = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 74, 52)];
     [badgeWrapper addSubview:self.cardTypeBadge];
     self.cardNumberField.rightView = badgeWrapper;
     self.cardNumberField.rightViewMode = UITextFieldViewModeAlways;
 
-    // Expiry + CVV on the same row
     self.expiryField = [self makeField:@"MM / YY" keyboard:UIKeyboardTypeNumberPad secure:NO];
     self.cvvField    = [self makeField:@"CVV"     keyboard:UIKeyboardTypeNumberPad secure:YES];
     [self.expiryField addTarget:self action:@selector(expiryChanged:) forControlEvents:UIControlEventEditingChanged];
 
-    UIStackView *expiryCVVRow = [[UIStackView alloc] initWithArrangedSubviews:@[self.expiryField, self.cvvField]];
-    expiryCVVRow.axis = UILayoutConstraintAxisHorizontal;
-    expiryCVVRow.spacing = 12;
-    expiryCVVRow.distribution = UIStackViewDistributionFillEqually;
-    expiryCVVRow.translatesAutoresizingMaskIntoConstraints = NO;
+    // Grouped container
+    UIView *container = [[UIView alloc] init];
+    container.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    container.layer.cornerRadius = 12;
+    container.layer.masksToBounds = YES;
+    container.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIView *hSep = [[UIView alloc] init]; // horizontal separator between card number and bottom row
+    hSep.backgroundColor = [UIColor separatorColor];
+    hSep.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIView *vSep = [[UIView alloc] init]; // vertical separator between expiry and CVV
+    vSep.backgroundColor = [UIColor separatorColor];
+    vSep.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [container addSubview:self.cardNumberField];
+    [container addSubview:hSep];
+    [container addSubview:self.expiryField];
+    [container addSubview:vSep];
+    [container addSubview:self.cvvField];
 
     // Submit button
     self.submitButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.submitButton setTitle:@"Add Card" forState:UIControlStateNormal];
     self.submitButton.backgroundColor = [UIColor systemBlueColor];
     [self.submitButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.submitButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
-    self.submitButton.layer.cornerRadius = 8;
+    self.submitButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    self.submitButton.layer.cornerRadius = 14;
     self.submitButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.submitButton addTarget:self action:@selector(submitTapped) forControlEvents:UIControlEventTouchUpInside];
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        self.cardNumberField,
-        expiryCVVRow,
-        self.submitButton,
-    ]];
-    stack.axis = UILayoutConstraintAxisVertical;
-    stack.spacing = 12;
-    stack.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:stack];
-
+    // Activity indicator inside the submit button
     self.activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+    self.activityIndicator.color = [UIColor whiteColor];
     self.activityIndicator.translatesAutoresizingMaskIntoConstraints = NO;
     self.activityIndicator.hidesWhenStopped = YES;
-    [self.view addSubview:self.activityIndicator];
+    [self.submitButton addSubview:self.activityIndicator];
+
+    [self.view addSubview:container];
+    [self.view addSubview:self.submitButton];
 
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    CGFloat fieldHeight = 52;
+
     [NSLayoutConstraint activateConstraints:@[
-        [stack.topAnchor constraintEqualToAnchor:safe.topAnchor constant:24],
-        [stack.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
-        [stack.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
+        // Container
+        [container.topAnchor constraintEqualToAnchor:safe.topAnchor constant:24],
+        [container.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
+        [container.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
 
-        [self.submitButton.heightAnchor constraintEqualToConstant:50],
+        // Card number row
+        [self.cardNumberField.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [self.cardNumberField.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [self.cardNumberField.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [self.cardNumberField.heightAnchor constraintEqualToConstant:fieldHeight],
 
-        [self.activityIndicator.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.activityIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        // Horizontal separator
+        [hSep.topAnchor constraintEqualToAnchor:self.cardNumberField.bottomAnchor],
+        [hSep.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:16],
+        [hSep.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [hSep.heightAnchor constraintEqualToConstant:0.5],
+
+        // Expiry field (left half)
+        [self.expiryField.topAnchor constraintEqualToAnchor:hSep.bottomAnchor],
+        [self.expiryField.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [self.expiryField.widthAnchor constraintEqualToAnchor:container.widthAnchor multiplier:0.5],
+        [self.expiryField.heightAnchor constraintEqualToConstant:fieldHeight],
+        [self.expiryField.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+
+        // Vertical separator
+        [vSep.topAnchor constraintEqualToAnchor:hSep.bottomAnchor constant:12],
+        [vSep.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-12],
+        [vSep.leadingAnchor constraintEqualToAnchor:self.expiryField.trailingAnchor],
+        [vSep.widthAnchor constraintEqualToConstant:0.5],
+
+        // CVV field (right half)
+        [self.cvvField.topAnchor constraintEqualToAnchor:hSep.bottomAnchor],
+        [self.cvvField.leadingAnchor constraintEqualToAnchor:vSep.trailingAnchor],
+        [self.cvvField.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [self.cvvField.heightAnchor constraintEqualToConstant:fieldHeight],
+
+        // Submit button
+        [self.submitButton.topAnchor constraintEqualToAnchor:container.bottomAnchor constant:24],
+        [self.submitButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
+        [self.submitButton.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
+        [self.submitButton.heightAnchor constraintEqualToConstant:56],
+
+        // Spinner inside submit button
+        [self.activityIndicator.centerXAnchor constraintEqualToAnchor:self.submitButton.centerXAnchor],
+        [self.activityIndicator.centerYAnchor constraintEqualToAnchor:self.submitButton.centerYAnchor],
     ]];
 }
 
@@ -135,13 +177,17 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     UITextField *field = [[UITextField alloc] init];
     field.placeholder = placeholder;
     field.keyboardType = keyboard;
-    field.borderStyle = UITextBorderStyleRoundedRect;
+    field.borderStyle = UITextBorderStyleNone;
     field.font = [UIFont systemFontOfSize:16];
     field.autocorrectionType = UITextAutocorrectionTypeNo;
     field.secureTextEntry = secure;
     field.translatesAutoresizingMaskIntoConstraints = NO;
     field.delegate = self;
-    [field.heightAnchor constraintEqualToConstant:48].active = YES;
+
+    UIView *leftPad = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 16, 0)];
+    field.leftView = leftPad;
+    field.leftViewMode = UITextFieldViewModeAlways;
+
     return field;
 }
 
@@ -303,8 +349,8 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     }
 
     [self.activityIndicator startAnimating];
+    [self.submitButton setTitle:@"" forState:UIControlStateNormal];
     self.submitButton.enabled = NO;
-    self.navigationItem.rightBarButtonItem.enabled = NO;
 
     BTCardClient *cardClient = [[BTCardClient alloc] initWithAPIClient:self.apiClient];
     BTCard *card = [[BTCard alloc] init];
@@ -317,8 +363,8 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     [cardClient tokenizeCard:card completion:^(BTCardNonce * _Nullable nonce, NSError * _Nullable error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [weakSelf.activityIndicator stopAnimating];
+            [weakSelf.submitButton setTitle:@"Add Card" forState:UIControlStateNormal];
             weakSelf.submitButton.enabled = YES;
-            weakSelf.navigationItem.rightBarButtonItem.enabled = YES;
             [weakSelf dismissViewControllerAnimated:YES completion:^{
                 if (weakSelf.completion) weakSelf.completion(nonce, error);
             }];
