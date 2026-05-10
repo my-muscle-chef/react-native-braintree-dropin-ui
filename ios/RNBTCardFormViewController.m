@@ -18,7 +18,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 @property (nonatomic, copy) BTCardFormCancel onCancel;
 
 @property (nonatomic, strong) UITextField *cardNumberField;
-@property (nonatomic, strong) UILabel *cardTypeLabel;
+@property (nonatomic, strong) UILabel *cardTypeBadge;
 @property (nonatomic, strong) UITextField *expiryField;
 @property (nonatomic, strong) UITextField *cvvField;
 @property (nonatomic, strong) UIButton *submitButton;
@@ -65,27 +65,35 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
         target:self
         action:@selector(submitTapped)];
 
-    // Card number row: [field | card type label]
+    // Card number field with inline badge as right accessory
     self.cardNumberField = [self makeField:@"Card Number" keyboard:UIKeyboardTypeNumberPad secure:NO];
     [self.cardNumberField addTarget:self action:@selector(cardNumberChanged:) forControlEvents:UIControlEventEditingChanged];
 
-    self.cardTypeLabel = [[UILabel alloc] init];
-    self.cardTypeLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
-    self.cardTypeLabel.textColor = [UIColor secondaryLabelColor];
-    self.cardTypeLabel.textAlignment = NSTextAlignmentRight;
-    self.cardTypeLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.cardTypeLabel setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    self.cardTypeBadge = [[UILabel alloc] initWithFrame:CGRectMake(6, 10, 66, 22)];
+    self.cardTypeBadge.font = [UIFont boldSystemFontOfSize:11];
+    self.cardTypeBadge.textColor = [UIColor whiteColor];
+    self.cardTypeBadge.textAlignment = NSTextAlignmentCenter;
+    self.cardTypeBadge.layer.cornerRadius = 4;
+    self.cardTypeBadge.layer.masksToBounds = YES;
+    self.cardTypeBadge.hidden = YES;
 
-    UIStackView *cardNumberRow = [[UIStackView alloc] initWithArrangedSubviews:@[self.cardNumberField, self.cardTypeLabel]];
-    cardNumberRow.axis = UILayoutConstraintAxisHorizontal;
-    cardNumberRow.spacing = 8;
-    cardNumberRow.alignment = UIStackViewAlignmentCenter;
-    cardNumberRow.translatesAutoresizingMaskIntoConstraints = NO;
+    UIView *badgeWrapper = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 78, 42)];
+    [badgeWrapper addSubview:self.cardTypeBadge];
+    self.cardNumberField.rightView = badgeWrapper;
+    self.cardNumberField.rightViewMode = UITextFieldViewModeAlways;
 
-    self.expiryField     = [self makeField:@"MM / YY"     keyboard:UIKeyboardTypeNumberPad  secure:NO];
-    self.cvvField        = [self makeField:@"CVV"         keyboard:UIKeyboardTypeNumberPad  secure:YES];
+    // Expiry + CVV on the same row
+    self.expiryField = [self makeField:@"MM / YY" keyboard:UIKeyboardTypeNumberPad secure:NO];
+    self.cvvField    = [self makeField:@"CVV"     keyboard:UIKeyboardTypeNumberPad secure:YES];
     [self.expiryField addTarget:self action:@selector(expiryChanged:) forControlEvents:UIControlEventEditingChanged];
 
+    UIStackView *expiryCVVRow = [[UIStackView alloc] initWithArrangedSubviews:@[self.expiryField, self.cvvField]];
+    expiryCVVRow.axis = UILayoutConstraintAxisHorizontal;
+    expiryCVVRow.spacing = 12;
+    expiryCVVRow.distribution = UIStackViewDistributionFillEqually;
+    expiryCVVRow.translatesAutoresizingMaskIntoConstraints = NO;
+
+    // Submit button
     self.submitButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.submitButton setTitle:@"Add Card" forState:UIControlStateNormal];
     self.submitButton.backgroundColor = [UIColor systemBlueColor];
@@ -96,9 +104,8 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     [self.submitButton addTarget:self action:@selector(submitTapped) forControlEvents:UIControlEventTouchUpInside];
 
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        cardNumberRow,
-        self.expiryField,
-        self.cvvField,
+        self.cardNumberField,
+        expiryCVVRow,
         self.submitButton,
     ]];
     stack.axis = UILayoutConstraintAxisVertical;
@@ -138,13 +145,11 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     return field;
 }
 
-#pragma mark - Card Network Detection
+#pragma mark - Card Network
 
 - (RNBTCardNetwork)detectNetworkFromDigits:(NSString *)digits {
     if (digits.length == 0) return RNBTCardNetworkUnknown;
-
     if ([digits hasPrefix:@"4"]) return RNBTCardNetworkVisa;
-
     if (digits.length >= 2) {
         int p2 = [[digits substringToIndex:2] intValue];
         if (p2 == 34 || p2 == 37) return RNBTCardNetworkAmex;
@@ -159,30 +164,38 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
         if (p4 >= 6440 && p4 <= 6559) return RNBTCardNetworkDiscover;
         if (p4 >= 3000 && p4 <= 3059) return RNBTCardNetworkDiners;
     }
-    if (digits.length >= 3) {
-        int p3 = [[digits substringToIndex:3] intValue];
-        if (p3 >= 622) return RNBTCardNetworkDiscover;
-    }
+    if (digits.length >= 3 && [[digits substringToIndex:3] intValue] >= 622) return RNBTCardNetworkDiscover;
     return RNBTCardNetworkUnknown;
 }
 
 - (NSString *)networkName:(RNBTCardNetwork)network {
     switch (network) {
-        case RNBTCardNetworkVisa:        return @"Visa";
-        case RNBTCardNetworkMastercard:  return @"Mastercard";
-        case RNBTCardNetworkAmex:        return @"Amex";
-        case RNBTCardNetworkDiscover:    return @"Discover";
+        case RNBTCardNetworkVisa:        return @"VISA";
+        case RNBTCardNetworkMastercard:  return @"MC";
+        case RNBTCardNetworkAmex:        return @"AMEX";
+        case RNBTCardNetworkDiscover:    return @"DISC";
         case RNBTCardNetworkJCB:         return @"JCB";
-        case RNBTCardNetworkDiners:      return @"Diners";
+        case RNBTCardNetworkDiners:      return @"DINERS";
         default:                         return @"";
     }
 }
 
-// Returns grouping sizes and max digits for a given network.
+- (UIColor *)networkColor:(RNBTCardNetwork)network {
+    switch (network) {
+        case RNBTCardNetworkVisa:        return [UIColor colorWithRed:0.10 green:0.12 blue:0.44 alpha:1.0];
+        case RNBTCardNetworkMastercard:  return [UIColor colorWithRed:0.92 green:0.00 blue:0.11 alpha:1.0];
+        case RNBTCardNetworkAmex:        return [UIColor colorWithRed:0.18 green:0.47 blue:0.74 alpha:1.0];
+        case RNBTCardNetworkDiscover:    return [UIColor colorWithRed:1.00 green:0.40 blue:0.00 alpha:1.0];
+        case RNBTCardNetworkJCB:         return [UIColor colorWithRed:0.00 green:0.45 blue:0.18 alpha:1.0];
+        case RNBTCardNetworkDiners:      return [UIColor colorWithRed:0.40 green:0.40 blue:0.40 alpha:1.0];
+        default:                         return [UIColor systemGrayColor];
+    }
+}
+
 - (NSArray<NSNumber *> *)groupsForNetwork:(RNBTCardNetwork)network {
-    if (network == RNBTCardNetworkAmex)   return @[@4, @6, @5];   // 15 digits
-    if (network == RNBTCardNetworkDiners) return @[@4, @6, @4];   // 14 digits
-    return @[@4, @4, @4, @4];                                     // 16 digits
+    if (network == RNBTCardNetworkAmex)   return @[@4, @6, @5];
+    if (network == RNBTCardNetworkDiners) return @[@4, @6, @4];
+    return @[@4, @4, @4, @4];
 }
 
 - (NSUInteger)maxDigitsForNetwork:(RNBTCardNetwork)network {
@@ -192,10 +205,9 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 }
 
 - (NSString *)formatCardDigits:(NSString *)digits network:(RNBTCardNetwork)network {
-    NSArray<NSNumber *> *groups = [self groupsForNetwork:network];
     NSMutableString *result = [NSMutableString string];
     NSUInteger pos = 0;
-    for (NSNumber *len in groups) {
+    for (NSNumber *len in [self groupsForNetwork:network]) {
         NSUInteger groupLen = len.unsignedIntegerValue;
         if (pos >= digits.length) break;
         NSUInteger end = MIN(pos + groupLen, digits.length);
@@ -215,16 +227,20 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 
     RNBTCardNetwork network = [self detectNetworkFromDigits:digits];
     self.detectedCardNetwork = network;
-    self.cardTypeLabel.text = [self networkName:network];
+
+    if (network != RNBTCardNetworkUnknown) {
+        self.cardTypeBadge.text = [self networkName:network];
+        self.cardTypeBadge.backgroundColor = [self networkColor:network];
+        self.cardTypeBadge.hidden = NO;
+    } else {
+        self.cardTypeBadge.hidden = YES;
+    }
 
     NSUInteger maxDigits = [self maxDigitsForNetwork:network];
     if (digits.length > maxDigits) digits = [digits substringToIndex:maxDigits];
-
-    NSUInteger cursorOffset = field.text.length; // save rough position
     field.text = [self formatCardDigits:digits network:network];
 
-    // Update CVV max length hint for Amex (4 digits)
-    self.cvvField.placeholder = (network == RNBTCardNetworkAmex) ? @"CVV (4 digits)" : @"CVV";
+    self.cvvField.placeholder = (network == RNBTCardNetworkAmex) ? @"CVV (4)" : @"CVV";
 }
 
 - (void)expiryChanged:(UITextField *)field {
@@ -232,23 +248,9 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
                          [[NSCharacterSet decimalDigitCharacterSet] invertedSet]]
                         componentsJoinedByString:@""];
     if (digits.length > 4) digits = [digits substringToIndex:4];
-    if (digits.length >= 3) {
-        field.text = [NSString stringWithFormat:@"%@ / %@",
-                      [digits substringToIndex:2],
-                      [digits substringFromIndex:2]];
-    } else {
-        field.text = digits;
-    }
-}
-
-#pragma mark - UITextFieldDelegate
-
-- (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string {
-    // Block manual edits on formatted fields; we reformat in the callbacks above.
-    if (textField == self.cardNumberField || textField == self.expiryField) {
-        return YES; // let the change through, callback will reformat
-    }
-    return YES;
+    field.text = digits.length >= 3
+        ? [NSString stringWithFormat:@"%@ / %@", [digits substringToIndex:2], [digits substringFromIndex:2]]
+        : digits;
 }
 
 #pragma mark - Actions
@@ -265,38 +267,35 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
                          [[NSCharacterSet decimalDigitCharacterSet] invertedSet]]
                         componentsJoinedByString:@""];
     NSString *expiry = [self.expiryField.text stringByReplacingOccurrencesOfString:@" " withString:@""];
-    NSString *cvv = self.cvvField.text;
+    NSString *cvv    = self.cvvField.text;
 
-    // Card number
-    NSUInteger minDigits = 13;
-    if (digits.length < minDigits) {
+    if (digits.length < 13) {
         [self showError:@"Please enter a valid card number."];
         return;
     }
 
-    // Expiry
     NSArray<NSString *> *parts = [expiry componentsSeparatedByString:@"/"];
     if (parts.count != 2) {
         [self showError:@"Please enter a valid expiry date (MM / YY)."];
         return;
     }
     NSInteger month = [parts[0] integerValue];
-    NSString *yearStr = parts[1];
-    if (yearStr.length == 2) yearStr = [NSString stringWithFormat:@"20%@", yearStr];
+    NSString *yearStr = parts[1].length == 2
+        ? [NSString stringWithFormat:@"20%@", parts[1]]
+        : parts[1];
     NSInteger year = [yearStr integerValue];
 
     if (month < 1 || month > 12) {
         [self showError:@"Please enter a valid expiry month."];
         return;
     }
-    NSCalendar *cal = [NSCalendar currentCalendar];
-    NSDateComponents *now = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth) fromDate:[NSDate date]];
+    NSDateComponents *now = [[NSCalendar currentCalendar]
+        components:(NSCalendarUnitYear | NSCalendarUnitMonth) fromDate:[NSDate date]];
     if (year < now.year || (year == now.year && month < now.month)) {
         [self showError:@"This card has expired."];
         return;
     }
 
-    // CVV
     NSUInteger cvvMin = (self.detectedCardNetwork == RNBTCardNetworkAmex) ? 4 : 3;
     if (cvv.length < cvvMin) {
         [self showError:[NSString stringWithFormat:@"Please enter a valid CVV (%lu digits).", (unsigned long)cvvMin]];
@@ -320,7 +319,6 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
             [weakSelf.activityIndicator stopAnimating];
             weakSelf.submitButton.enabled = YES;
             weakSelf.navigationItem.rightBarButtonItem.enabled = YES;
-
             [weakSelf dismissViewControllerAnimated:YES completion:^{
                 if (weakSelf.completion) weakSelf.completion(nonce, error);
             }];
