@@ -142,6 +142,54 @@ RCT_EXPORT_METHOD(show:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)r
     }
 }
 
+RCT_EXPORT_METHOD(showApplePay:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSString* clientToken = options[@"clientToken"];
+    if (!clientToken) {
+        reject(@"NO_CLIENT_TOKEN", @"You must provide a client token", nil);
+        return;
+    }
+
+    NSString* merchantIdentifier = options[@"merchantIdentifier"];
+    NSString* countryCode = options[@"countryCode"];
+    NSString* currencyCode = options[@"currencyCode"];
+    NSString* merchantName = options[@"merchantName"];
+    NSString* orderTotalStr = options[@"orderTotal"];
+
+    if (!merchantIdentifier || !countryCode || !currencyCode || !merchantName || !orderTotalStr) {
+        reject(@"MISSING_OPTIONS", @"Not all required Apple Pay options were provided", nil);
+        return;
+    }
+
+    self.resolve = resolve;
+    self.reject = reject;
+    self.applePayAuthorized = NO;
+    self.deviceDataCollector = @"";
+
+    self.braintreeClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];
+
+    self.dataCollector = [[BTDataCollector alloc] initWithAPIClient:self.braintreeClient];
+    [self.dataCollector collectDeviceData:^(NSString * _Nonnull deviceData) {
+        self.deviceDataCollector = deviceData;
+    }];
+
+    self.paymentRequest = [[PKPaymentRequest alloc] init];
+    self.paymentRequest.merchantIdentifier = merchantIdentifier;
+    self.paymentRequest.merchantCapabilities = PKMerchantCapability3DS;
+    self.paymentRequest.countryCode = countryCode;
+    self.paymentRequest.currencyCode = currencyCode;
+    self.paymentRequest.supportedNetworks = @[PKPaymentNetworkAmex, PKPaymentNetworkVisa, PKPaymentNetworkMasterCard, PKPaymentNetworkDiscover, PKPaymentNetworkChinaUnionPay];
+    self.paymentRequest.paymentSummaryItems = @[
+        [PKPaymentSummaryItem summaryItemWithLabel:merchantName amount:[NSDecimalNumber decimalNumberWithString:orderTotalStr]]
+    ];
+
+    self.viewController = [[PKPaymentAuthorizationViewController alloc] initWithPaymentRequest:self.paymentRequest];
+    self.viewController.delegate = self;
+
+    UIViewController *rootViewController = RCTPresentedViewController();
+    [rootViewController presentViewController:self.viewController animated:YES completion:nil];
+}
+
 RCT_EXPORT_METHOD(getDeviceData:(NSString*)clientToken resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 {
     BTAPIClient *braintreeClient = [[BTAPIClient alloc] initWithAuthorization:clientToken];

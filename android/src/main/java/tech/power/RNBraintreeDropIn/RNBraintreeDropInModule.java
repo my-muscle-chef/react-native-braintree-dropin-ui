@@ -26,6 +26,9 @@ import com.braintreepayments.api.DropInResult;
 import com.braintreepayments.api.PaymentMethodNonce;
 import com.braintreepayments.api.CardNonce;
 import com.braintreepayments.api.ThreeDSecureInfo;
+import com.braintreepayments.api.GooglePayClient;
+import com.braintreepayments.api.GooglePayLauncher;
+import com.braintreepayments.api.GooglePayNonce;
 import com.braintreepayments.api.GooglePayRequest;
 import com.google.android.gms.wallet.TransactionInfo;
 import com.google.android.gms.wallet.WalletConstants;
@@ -36,6 +39,45 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
   private boolean isVerifyingThreeDSecure = false;
   private static DropInClient dropInClient = null;
   private static String clientToken = null;
+
+  private static GooglePayClient googlePayClient = null;
+  private static GooglePayLauncher googlePayLauncher = null;
+  private static Promise pendingGooglePayPromise = null;
+  private static String pendingGooglePayDeviceData = null;
+
+  public static void initGooglePayLauncher(FragmentActivity activity) {
+    googlePayLauncher = new GooglePayLauncher(activity, paymentAuthResult -> {
+      Promise promise = pendingGooglePayPromise;
+      pendingGooglePayPromise = null;
+      if (promise == null) return;
+
+      if (googlePayClient == null) {
+        promise.reject("GOOGLE_PAY_CLIENT_UNINITIALIZED", "Google Pay client is not initialized");
+        return;
+      }
+
+      googlePayClient.tokenize(paymentAuthResult, (nonce, error) -> {
+        if (error != null) {
+          if (error instanceof UserCanceledException) {
+            promise.reject("USER_CANCELLATION", "The user cancelled");
+          } else {
+            promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
+          }
+        } else if (nonce != null) {
+          WritableMap jsResult = Arguments.createMap();
+          jsResult.putString("nonce", nonce.getString());
+          jsResult.putString("type", "Google Pay");
+          jsResult.putString("description", "Google Pay");
+          jsResult.putBoolean("isDefault", nonce.isDefault());
+          jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
+          pendingGooglePayDeviceData = null;
+          promise.resolve(jsResult);
+        } else {
+          promise.reject("NO_NONCE", "No Google Pay nonce returned");
+        }
+      });
+    });
+  }
 
   public static void initDropInClient(FragmentActivity activity) {
     dropInClient = new DropInClient(activity, callback -> {
@@ -148,6 +190,64 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       }
     });
     dropInClient.launchDropIn(dropInRequest);
+  }
+
+  @ReactMethod
+  public void showGooglePay(final ReadableMap options, final Promise promise) {
+    if (!options.hasKey("clientToken")) {
+      promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
+      return;
+    }
+
+    if (googlePayLauncher == null) {
+      promise.reject(
+        "GOOGLE_PAY_LAUNCHER_UNINITIALIZED",
+        "Did you forget to call RNBraintreeDropInModule.initGooglePayLauncher(this) in MainActivity.onCreate?"
+      );
+      return;
+    }
+
+    if (!options.hasKey("orderTotal") || !options.hasKey("currencyCode")) {
+      promise.reject("MISSING_OPTIONS", "You must provide orderTotal and currencyCode for Google Pay");
+      return;
+    }
+
+    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
+    if (currentActivity == null) {
+      promise.reject("NO_ACTIVITY", "There is no current activity");
+      return;
+    }
+
+    String token = options.getString("clientToken");
+    BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
+    googlePayClient = new GooglePayClient(braintreeClient);
+
+    DataCollector dataCollector = new DataCollector(braintreeClient);
+    dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
+      pendingGooglePayDeviceData = deviceData;
+    });
+
+    GooglePayRequest googlePayRequest = new GooglePayRequest();
+    googlePayRequest.setTransactionInfo(TransactionInfo.newBuilder()
+        .setTotalPrice(options.getString("orderTotal"))
+        .setTotalPriceStatus(WalletConstants.TOTAL_PRICE_STATUS_FINAL)
+        .setCurrencyCode(options.getString("currencyCode"))
+        .build());
+    googlePayRequest.setBillingAddressRequired(true);
+    if (options.hasKey("googlePayMerchantId")) {
+      googlePayRequest.setGoogleMerchantId(options.getString("googlePayMerchantId"));
+    }
+
+    pendingGooglePayPromise = promise;
+
+    googlePayClient.requestPayment(currentActivity, googlePayRequest, (paymentAuthRequest, error) -> {
+      if (error != null) {
+        pendingGooglePayPromise = null;
+        promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
+        return;
+      }
+      googlePayLauncher.launch(paymentAuthRequest);
+    });
   }
 
   @ReactMethod
