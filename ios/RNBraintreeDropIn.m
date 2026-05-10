@@ -210,22 +210,10 @@ RCT_EXPORT_METHOD(showPayPal:(NSDictionary*)options resolver:(RCTPromiseResolveB
         self.deviceDataCollector = deviceData;
     }];
 
-    __block BTPayPalDriver *payPalClient = [[BTPayPalDriver alloc] initWithAPIClient:self.braintreeClient];
+    __block BTPayPalDriver *payPalDriver = [[BTPayPalDriver alloc] initWithAPIClient:self.braintreeClient];
 
-    BTPayPalRequest *payPalRequest;
-    NSString *amount = options[@"amount"];
-    if (amount) {
-        BTPayPalCheckoutRequest *checkoutRequest = [[BTPayPalCheckoutRequest alloc] initWithAmount:amount];
-        if (options[@"currencyCode"]) {
-            checkoutRequest.currencyCode = options[@"currencyCode"];
-        }
-        payPalRequest = checkoutRequest;
-    } else {
-        payPalRequest = [[BTPayPalVaultRequest alloc] init];
-    }
-
-    [payPalClient tokenizePayPalAccount:payPalRequest completion:^(BTPayPalAccountNonce * _Nullable nonce, NSError * _Nullable error) {
-        payPalClient = nil;
+    void (^completionBlock)(BTPayPalAccountNonce * _Nullable, NSError * _Nullable) = ^(BTPayPalAccountNonce * _Nullable nonce, NSError * _Nullable error) {
+        payPalDriver = nil;
         if (error) {
             self.reject(error.localizedDescription, error.localizedDescription, error);
         } else if (!nonce) {
@@ -239,7 +227,18 @@ RCT_EXPORT_METHOD(showPayPal:(NSDictionary*)options resolver:(RCTPromiseResolveB
             [result setObject:self.deviceDataCollector ?: @"" forKey:@"deviceData"];
             self.resolve(result);
         }
-    }];
+    };
+
+    NSString *amount = options[@"amount"];
+    if (amount) {
+        BTPayPalCheckoutRequest *checkoutRequest = [[BTPayPalCheckoutRequest alloc] initWithAmount:amount];
+        if (options[@"currencyCode"]) {
+            checkoutRequest.currencyCode = options[@"currencyCode"];
+        }
+        [payPalDriver requestOneTimePayment:checkoutRequest completion:completionBlock];
+    } else {
+        [payPalDriver requestBillingAgreement:[[BTPayPalVaultRequest alloc] init] completion:completionBlock];
+    }
 }
 
 RCT_EXPORT_METHOD(showCardForm:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
