@@ -1,10 +1,12 @@
 package tech.power.RNBraintreeDropIn;
 
 import android.app.Activity;
+import android.content.Intent;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentActivity;
 
+import com.braintreepayments.api.BrowserSwitchResult;
 import com.braintreepayments.api.BraintreeClient;
 import com.braintreepayments.api.DataCollector;
 import com.braintreepayments.api.Card;
@@ -14,6 +16,8 @@ import com.braintreepayments.api.DropInListener;
 import com.braintreepayments.api.DropInPaymentMethod;
 import com.braintreepayments.api.ThreeDSecureRequest;
 import com.braintreepayments.api.UserCanceledException;
+import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.BaseActivityEventListener;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -27,12 +31,10 @@ import com.braintreepayments.api.PaymentMethodNonce;
 import com.braintreepayments.api.CardNonce;
 import com.braintreepayments.api.ThreeDSecureInfo;
 import com.braintreepayments.api.GooglePayClient;
-import com.braintreepayments.api.GooglePayListener;
 import com.braintreepayments.api.GooglePayRequest;
 import com.braintreepayments.api.PayPalAccountNonce;
 import com.braintreepayments.api.PayPalCheckoutRequest;
 import com.braintreepayments.api.PayPalClient;
-import com.braintreepayments.api.PayPalListener;
 import com.braintreepayments.api.PayPalRequest;
 import com.braintreepayments.api.PayPalVaultRequest;
 import com.google.android.gms.wallet.TransactionInfo;
@@ -67,8 +69,73 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     });
   }
 
+  private final ActivityEventListener mActivityEventListener = new BaseActivityEventListener() {
+    @Override
+    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+      if (googlePayClient != null && pendingGooglePayPromise != null) {
+        googlePayClient.onActivityResult(resultCode, data, (nonce, error) -> {
+          Promise p = pendingGooglePayPromise;
+          pendingGooglePayPromise = null;
+          if (p == null) return;
+          if (error != null) {
+            if (error instanceof UserCanceledException) {
+              p.reject("USER_CANCELLATION", "The user cancelled");
+            } else {
+              p.reject("GOOGLE_PAY_ERROR", error.getMessage());
+            }
+          } else if (nonce != null) {
+            WritableMap jsResult = Arguments.createMap();
+            jsResult.putString("nonce", nonce.getString());
+            jsResult.putString("type", "Google Pay");
+            jsResult.putString("description", "Google Pay");
+            jsResult.putBoolean("isDefault", nonce.isDefault());
+            jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
+            pendingGooglePayDeviceData = null;
+            p.resolve(jsResult);
+          } else {
+            p.reject("NO_NONCE", "No Google Pay nonce returned");
+          }
+        });
+      }
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+      if (payPalClient == null || pendingPayPalPromise == null) return;
+      Activity currentActivity = getCurrentActivity();
+      if (currentActivity == null) return;
+      BrowserSwitchResult result = payPalClient.parseBrowserSwitchResult(currentActivity, intent);
+      if (result == null) return;
+      payPalClient.onBrowserSwitchResult(result, (nonce, error) -> {
+        Promise p = pendingPayPalPromise;
+        pendingPayPalPromise = null;
+        if (p == null) return;
+        if (error != null) {
+          if (error instanceof UserCanceledException) {
+            p.reject("USER_CANCELLATION", "The user cancelled");
+          } else {
+            p.reject("PAYPAL_ERROR", error.getMessage());
+          }
+        } else if (nonce != null) {
+          WritableMap jsResult = Arguments.createMap();
+          jsResult.putString("nonce", nonce.getString());
+          jsResult.putString("type", "PayPal");
+          String email = nonce.getEmail();
+          jsResult.putString("description", email != null ? email : "PayPal");
+          jsResult.putBoolean("isDefault", nonce.isDefault());
+          jsResult.putString("deviceData", pendingPayPalDeviceData != null ? pendingPayPalDeviceData : "");
+          pendingPayPalDeviceData = null;
+          p.resolve(jsResult);
+        } else {
+          p.reject("NO_NONCE", "No PayPal nonce returned");
+        }
+      });
+    }
+  };
+
   public RNBraintreeDropInModule(ReactApplicationContext reactContext) {
     super(reactContext);
+    reactContext.addActivityEventListener(mActivityEventListener);
   }
 
   @ReactMethod
@@ -190,7 +257,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     String token = options.getString("clientToken");
     BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
-    googlePayClient = new GooglePayClient(currentActivity, braintreeClient);
+    googlePayClient = new GooglePayClient(braintreeClient); // deprecated: no ActivityResultRegistry
 
     DataCollector dataCollector = new DataCollector(braintreeClient);
     dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
@@ -210,38 +277,13 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingGooglePayPromise = promise;
 
-    currentActivity.runOnUiThread(() -> {
-    googlePayClient.setListener(new GooglePayListener() {
-      @Override
-      public void onGooglePaySuccess(@NonNull PaymentMethodNonce paymentMethodNonce) {
-        Promise p = pendingGooglePayPromise;
+    googlePayClient.requestPayment(currentActivity, googlePayRequest, error -> {
+      if (error != null) {
         pendingGooglePayPromise = null;
-        if (p == null) return;
-        WritableMap jsResult = Arguments.createMap();
-        jsResult.putString("nonce", paymentMethodNonce.getString());
-        jsResult.putString("type", "Google Pay");
-        jsResult.putString("description", "Google Pay");
-        jsResult.putBoolean("isDefault", paymentMethodNonce.isDefault());
-        jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
-        pendingGooglePayDeviceData = null;
-        p.resolve(jsResult);
+        promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
       }
-
-      @Override
-      public void onGooglePayFailure(@NonNull Exception error) {
-        Promise p = pendingGooglePayPromise;
-        pendingGooglePayPromise = null;
-        if (p == null) return;
-        if (error instanceof UserCanceledException) {
-          p.reject("USER_CANCELLATION", "The user cancelled");
-        } else {
-          p.reject("GOOGLE_PAY_ERROR", error.getMessage());
-        }
-      }
+      // else: sheet launched — result delivered via onActivityResult
     });
-
-    googlePayClient.requestPayment(currentActivity, googlePayRequest);
-    }); // end runOnUiThread
   }
 
   @ReactMethod
@@ -259,7 +301,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     String token = options.getString("clientToken");
     BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
-    payPalClient = new PayPalClient(currentActivity, braintreeClient);
+    payPalClient = new PayPalClient(braintreeClient); // deprecated: no ActivityResultRegistry
 
     DataCollector dataCollector = new DataCollector(braintreeClient);
     dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
@@ -278,40 +320,8 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     }
 
     pendingPayPalPromise = promise;
-
-    currentActivity.runOnUiThread(() -> {
-    payPalClient.setListener(new PayPalListener() {
-      @Override
-      public void onPayPalSuccess(@NonNull PayPalAccountNonce payPalAccountNonce) {
-        Promise p = pendingPayPalPromise;
-        pendingPayPalPromise = null;
-        if (p == null) return;
-        WritableMap jsResult = Arguments.createMap();
-        jsResult.putString("nonce", payPalAccountNonce.getString());
-        jsResult.putString("type", "PayPal");
-        String email = payPalAccountNonce.getEmail();
-        jsResult.putString("description", email != null ? email : "PayPal");
-        jsResult.putBoolean("isDefault", payPalAccountNonce.isDefault());
-        jsResult.putString("deviceData", pendingPayPalDeviceData != null ? pendingPayPalDeviceData : "");
-        pendingPayPalDeviceData = null;
-        p.resolve(jsResult);
-      }
-
-      @Override
-      public void onPayPalFailure(@NonNull Exception error) {
-        Promise p = pendingPayPalPromise;
-        pendingPayPalPromise = null;
-        if (p == null) return;
-        if (error instanceof UserCanceledException) {
-          p.reject("USER_CANCELLATION", "The user cancelled");
-        } else {
-          p.reject("PAYPAL_ERROR", error.getMessage());
-        }
-      }
-    });
-
     payPalClient.tokenizePayPalAccount(currentActivity, payPalRequest);
-    }); // end runOnUiThread
+    // result delivered via onNewIntent → parseBrowserSwitchResult → onBrowserSwitchResult
   }
 
   @ReactMethod
