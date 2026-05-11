@@ -210,6 +210,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingGooglePayPromise = promise;
 
+    currentActivity.runOnUiThread(() -> {
     googlePayClient.setListener(new GooglePayListener() {
       @Override
       public void onGooglePaySuccess(@NonNull PaymentMethodNonce paymentMethodNonce) {
@@ -240,6 +241,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     });
 
     googlePayClient.requestPayment(currentActivity, googlePayRequest);
+    }); // end runOnUiThread
   }
 
   @ReactMethod
@@ -277,6 +279,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingPayPalPromise = promise;
 
+    currentActivity.runOnUiThread(() -> {
     payPalClient.setListener(new PayPalListener() {
       @Override
       public void onPayPalSuccess(@NonNull PayPalAccountNonce payPalAccountNonce) {
@@ -308,6 +311,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     });
 
     payPalClient.tokenizePayPalAccount(currentActivity, payPalRequest);
+    }); // end runOnUiThread
   }
 
   @ReactMethod
@@ -323,62 +327,13 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       return;
     }
 
-    if (dropInClient == null) {
-      promise.reject(
-        "DROP_IN_CLIENT_UNINITIALIZED",
-        "Did you forget to call RNBraintreeDropInModule.initDropInClient(this) in MainActivity.onCreate?"
-      );
-      return;
-    }
+    String token = options.getString("clientToken");
+    boolean darkTheme = options.hasKey("darkTheme") && options.getBoolean("darkTheme");
 
-    DropInRequest dropInRequest = new DropInRequest();
-    dropInRequest.setGooglePayDisabled(true);
-    dropInRequest.setPayPalDisabled(true);
-    dropInRequest.setVaultManagerEnabled(false);
-
-    if (options.hasKey("threeDSecure")) {
-      final ReadableMap threeDSecureOptions = options.getMap("threeDSecure");
-      if (threeDSecureOptions == null || !threeDSecureOptions.hasKey("amount")) {
-        promise.reject("NO_3DS_AMOUNT", "You must provide an amount for 3D Secure");
-        return;
-      }
-      ThreeDSecureRequest threeDSecureRequest = new ThreeDSecureRequest();
-      threeDSecureRequest.setAmount(threeDSecureOptions.getString("amount"));
-      dropInRequest.setThreeDSecureRequest(threeDSecureRequest);
-    }
-
-    clientToken = options.getString("clientToken");
-
-    dropInClient.setListener(new DropInListener() {
-      @Override
-      public void onDropInSuccess(@NonNull DropInResult dropInResult) {
-        PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
-
-        if (options.hasKey("threeDSecure") && paymentMethodNonce instanceof CardNonce) {
-          CardNonce cardNonce = (CardNonce) paymentMethodNonce;
-          ThreeDSecureInfo threeDSecureInfo = cardNonce.getThreeDSecureInfo();
-          if (!threeDSecureInfo.isLiabilityShiftPossible()) {
-            promise.reject("3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", "3D Secure liability cannot be shifted");
-          } else if (!threeDSecureInfo.isLiabilityShifted()) {
-            promise.reject("3DSECURE_LIABILITY_NOT_SHIFTED", "3D Secure liability was not shifted");
-          } else {
-            resolvePayment(dropInResult, promise);
-          }
-        } else {
-          resolvePayment(dropInResult, promise);
-        }
-      }
-
-      @Override
-      public void onDropInFailure(@NonNull Exception exception) {
-        if (exception instanceof UserCanceledException) {
-          promise.reject("USER_CANCELLATION", "The user cancelled");
-        } else {
-          promise.reject(exception.getMessage(), exception.getMessage());
-        }
-      }
+    currentActivity.runOnUiThread(() -> {
+      RNBTCardFormFragment fragment = RNBTCardFormFragment.newInstance(token, darkTheme, promise);
+      fragment.show(currentActivity.getSupportFragmentManager(), "cardForm");
     });
-    dropInClient.launchDropIn(dropInRequest);
   }
 
   @ReactMethod
