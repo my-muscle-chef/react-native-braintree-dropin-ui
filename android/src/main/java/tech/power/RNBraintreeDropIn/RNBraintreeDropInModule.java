@@ -27,14 +27,13 @@ import com.braintreepayments.api.PaymentMethodNonce;
 import com.braintreepayments.api.CardNonce;
 import com.braintreepayments.api.ThreeDSecureInfo;
 import com.braintreepayments.api.GooglePayClient;
-import com.braintreepayments.api.GooglePayLauncher;
-import com.braintreepayments.api.GooglePayNonce;
-import com.braintreepayments.api.GooglePayPaymentAuthRequest;
+import com.braintreepayments.api.GooglePayListener;
 import com.braintreepayments.api.GooglePayRequest;
 import com.braintreepayments.api.PayPalAccountNonce;
 import com.braintreepayments.api.PayPalCheckoutRequest;
 import com.braintreepayments.api.PayPalClient;
-import com.braintreepayments.api.PayPalLauncher;
+import com.braintreepayments.api.PayPalListener;
+import com.braintreepayments.api.PayPalRequest;
 import com.braintreepayments.api.PayPalVaultRequest;
 import com.google.android.gms.wallet.TransactionInfo;
 import com.google.android.gms.wallet.WalletConstants;
@@ -47,83 +46,16 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
   private static String clientToken = null;
 
   private static GooglePayClient googlePayClient = null;
-  private static GooglePayLauncher googlePayLauncher = null;
   private static Promise pendingGooglePayPromise = null;
   private static String pendingGooglePayDeviceData = null;
 
   private static PayPalClient payPalClient = null;
-  private static PayPalLauncher payPalLauncher = null;
   private static Promise pendingPayPalPromise = null;
   private static String pendingPayPalDeviceData = null;
 
-  public static void initGooglePayLauncher(FragmentActivity activity) {
-    googlePayLauncher = new GooglePayLauncher(activity, paymentAuthResult -> {
-      Promise promise = pendingGooglePayPromise;
-      pendingGooglePayPromise = null;
-      if (promise == null) return;
+  public static void initGooglePayLauncher(FragmentActivity activity) {}
 
-      if (googlePayClient == null) {
-        promise.reject("GOOGLE_PAY_CLIENT_UNINITIALIZED", "Google Pay client is not initialized");
-        return;
-      }
-
-      googlePayClient.tokenize(paymentAuthResult, (nonce, error) -> {
-        if (error != null) {
-          if (error instanceof UserCanceledException) {
-            promise.reject("USER_CANCELLATION", "The user cancelled");
-          } else {
-            promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
-          }
-        } else if (nonce != null) {
-          WritableMap jsResult = Arguments.createMap();
-          jsResult.putString("nonce", nonce.getString());
-          jsResult.putString("type", "Google Pay");
-          jsResult.putString("description", "Google Pay");
-          jsResult.putBoolean("isDefault", nonce.isDefault());
-          jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
-          pendingGooglePayDeviceData = null;
-          promise.resolve(jsResult);
-        } else {
-          promise.reject("NO_NONCE", "No Google Pay nonce returned");
-        }
-      });
-    });
-  }
-
-  public static void initPayPalLauncher(FragmentActivity activity) {
-    payPalLauncher = new PayPalLauncher(activity, paymentAuthResult -> {
-      Promise promise = pendingPayPalPromise;
-      pendingPayPalPromise = null;
-      if (promise == null) return;
-
-      if (payPalClient == null) {
-        promise.reject("PAYPAL_CLIENT_UNINITIALIZED", "PayPal client is not initialized");
-        return;
-      }
-
-      payPalClient.tokenize(paymentAuthResult, (nonce, error) -> {
-        if (error != null) {
-          if (error instanceof UserCanceledException) {
-            promise.reject("USER_CANCELLATION", "The user cancelled");
-          } else {
-            promise.reject("PAYPAL_ERROR", error.getMessage());
-          }
-        } else if (nonce != null) {
-          WritableMap jsResult = Arguments.createMap();
-          jsResult.putString("nonce", nonce.getString());
-          jsResult.putString("type", "PayPal");
-          String email = nonce.getEmail();
-          jsResult.putString("description", email != null ? email : "PayPal");
-          jsResult.putBoolean("isDefault", nonce.isDefault());
-          jsResult.putString("deviceData", pendingPayPalDeviceData != null ? pendingPayPalDeviceData : "");
-          pendingPayPalDeviceData = null;
-          promise.resolve(jsResult);
-        } else {
-          promise.reject("NO_NONCE", "No PayPal nonce returned");
-        }
-      });
-    });
-  }
+  public static void initPayPalLauncher(FragmentActivity activity) {}
 
   public static void initDropInClient(FragmentActivity activity) {
     dropInClient = new DropInClient(activity, callback -> {
@@ -245,14 +177,6 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       return;
     }
 
-    if (googlePayLauncher == null) {
-      promise.reject(
-        "GOOGLE_PAY_LAUNCHER_UNINITIALIZED",
-        "Did you forget to call RNBraintreeDropInModule.initGooglePayLauncher(this) in MainActivity.onCreate?"
-      );
-      return;
-    }
-
     if (!options.hasKey("orderTotal") || !options.hasKey("currencyCode")) {
       promise.reject("MISSING_OPTIONS", "You must provide orderTotal and currencyCode for Google Pay");
       return;
@@ -266,7 +190,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     String token = options.getString("clientToken");
     BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
-    googlePayClient = new GooglePayClient(braintreeClient);
+    googlePayClient = new GooglePayClient(currentActivity, braintreeClient);
 
     DataCollector dataCollector = new DataCollector(braintreeClient);
     dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
@@ -286,28 +210,42 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingGooglePayPromise = promise;
 
-    googlePayClient.requestPayment(currentActivity, googlePayRequest, (GooglePayPaymentAuthRequest paymentAuthRequest, Exception error) -> {
-      if (error != null) {
+    googlePayClient.setListener(new GooglePayListener() {
+      @Override
+      public void onGooglePaySuccess(@NonNull PaymentMethodNonce paymentMethodNonce) {
+        Promise p = pendingGooglePayPromise;
         pendingGooglePayPromise = null;
-        promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
-        return;
+        if (p == null) return;
+        WritableMap jsResult = Arguments.createMap();
+        jsResult.putString("nonce", paymentMethodNonce.getString());
+        jsResult.putString("type", "Google Pay");
+        jsResult.putString("description", "Google Pay");
+        jsResult.putBoolean("isDefault", paymentMethodNonce.isDefault());
+        jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
+        pendingGooglePayDeviceData = null;
+        p.resolve(jsResult);
       }
-      googlePayLauncher.launch(paymentAuthRequest);
+
+      @Override
+      public void onGooglePayFailure(@NonNull Exception error) {
+        Promise p = pendingGooglePayPromise;
+        pendingGooglePayPromise = null;
+        if (p == null) return;
+        if (error instanceof UserCanceledException) {
+          p.reject("USER_CANCELLATION", "The user cancelled");
+        } else {
+          p.reject("GOOGLE_PAY_ERROR", error.getMessage());
+        }
+      }
     });
+
+    googlePayClient.requestPayment(currentActivity, googlePayRequest);
   }
 
   @ReactMethod
   public void showPayPal(final ReadableMap options, final Promise promise) {
     if (!options.hasKey("clientToken")) {
       promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
-      return;
-    }
-
-    if (payPalLauncher == null) {
-      promise.reject(
-        "PAYPAL_LAUNCHER_UNINITIALIZED",
-        "Did you forget to call RNBraintreeDropInModule.initPayPalLauncher(this) in MainActivity.onCreate?"
-      );
       return;
     }
 
@@ -319,14 +257,14 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     String token = options.getString("clientToken");
     BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
-    payPalClient = new PayPalClient(braintreeClient);
+    payPalClient = new PayPalClient(currentActivity, braintreeClient);
 
     DataCollector dataCollector = new DataCollector(braintreeClient);
     dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
       pendingPayPalDeviceData = deviceData;
     });
 
-    Object payPalRequest;
+    PayPalRequest payPalRequest;
     if (options.hasKey("amount")) {
       PayPalCheckoutRequest checkoutRequest = new PayPalCheckoutRequest(options.getString("amount"));
       if (options.hasKey("currencyCode")) {
@@ -339,25 +277,37 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingPayPalPromise = promise;
 
-    if (payPalRequest instanceof PayPalCheckoutRequest) {
-      payPalClient.createPaymentAuthRequest((PayPalCheckoutRequest) payPalRequest, (paymentAuthRequest, error) -> {
-        if (error != null) {
-          pendingPayPalPromise = null;
-          promise.reject("PAYPAL_ERROR", error.getMessage());
-          return;
+    payPalClient.setListener(new PayPalListener() {
+      @Override
+      public void onPayPalSuccess(@NonNull PayPalAccountNonce payPalAccountNonce) {
+        Promise p = pendingPayPalPromise;
+        pendingPayPalPromise = null;
+        if (p == null) return;
+        WritableMap jsResult = Arguments.createMap();
+        jsResult.putString("nonce", payPalAccountNonce.getString());
+        jsResult.putString("type", "PayPal");
+        String email = payPalAccountNonce.getEmail();
+        jsResult.putString("description", email != null ? email : "PayPal");
+        jsResult.putBoolean("isDefault", payPalAccountNonce.isDefault());
+        jsResult.putString("deviceData", pendingPayPalDeviceData != null ? pendingPayPalDeviceData : "");
+        pendingPayPalDeviceData = null;
+        p.resolve(jsResult);
+      }
+
+      @Override
+      public void onPayPalFailure(@NonNull Exception error) {
+        Promise p = pendingPayPalPromise;
+        pendingPayPalPromise = null;
+        if (p == null) return;
+        if (error instanceof UserCanceledException) {
+          p.reject("USER_CANCELLATION", "The user cancelled");
+        } else {
+          p.reject("PAYPAL_ERROR", error.getMessage());
         }
-        payPalLauncher.launch(paymentAuthRequest);
-      });
-    } else {
-      payPalClient.createPaymentAuthRequest((PayPalVaultRequest) payPalRequest, (paymentAuthRequest, error) -> {
-        if (error != null) {
-          pendingPayPalPromise = null;
-          promise.reject("PAYPAL_ERROR", error.getMessage());
-          return;
-        }
-        payPalLauncher.launch(paymentAuthRequest);
-      });
-    }
+      }
+    });
+
+    payPalClient.tokenizePayPalAccount(currentActivity, payPalRequest);
   }
 
   @ReactMethod
