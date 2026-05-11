@@ -29,6 +29,7 @@ import com.braintreepayments.api.ThreeDSecureInfo;
 import com.braintreepayments.api.GooglePayClient;
 import com.braintreepayments.api.GooglePayLauncher;
 import com.braintreepayments.api.GooglePayNonce;
+import com.braintreepayments.api.GooglePayPaymentAuthRequest;
 import com.braintreepayments.api.GooglePayRequest;
 import com.braintreepayments.api.PayPalAccountNonce;
 import com.braintreepayments.api.PayPalCheckoutRequest;
@@ -285,7 +286,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingGooglePayPromise = promise;
 
-    googlePayClient.requestPayment(currentActivity, googlePayRequest, (paymentAuthRequest, error) -> {
+    googlePayClient.requestPayment(currentActivity, googlePayRequest, (GooglePayPaymentAuthRequest paymentAuthRequest, Exception error) -> {
       if (error != null) {
         pendingGooglePayPromise = null;
         promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
@@ -339,7 +340,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     pendingPayPalPromise = promise;
 
     if (payPalRequest instanceof PayPalCheckoutRequest) {
-      payPalClient.createPaymentAuthRequest(currentActivity, (PayPalCheckoutRequest) payPalRequest, (paymentAuthRequest, error) -> {
+      payPalClient.createPaymentAuthRequest((PayPalCheckoutRequest) payPalRequest, (paymentAuthRequest, error) -> {
         if (error != null) {
           pendingPayPalPromise = null;
           promise.reject("PAYPAL_ERROR", error.getMessage());
@@ -348,7 +349,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
         payPalLauncher.launch(paymentAuthRequest);
       });
     } else {
-      payPalClient.createPaymentAuthRequest(currentActivity, (PayPalVaultRequest) payPalRequest, (paymentAuthRequest, error) -> {
+      payPalClient.createPaymentAuthRequest((PayPalVaultRequest) payPalRequest, (paymentAuthRequest, error) -> {
         if (error != null) {
           pendingPayPalPromise = null;
           promise.reject("PAYPAL_ERROR", error.getMessage());

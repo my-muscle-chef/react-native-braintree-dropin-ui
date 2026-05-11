@@ -38,6 +38,8 @@ repositories {
 
 dependencies {
     implementation 'com.braintreepayments.api:drop-in:6.17.0'
+    implementation 'com.braintreepayments.api:google-pay:4.37.0'
+    implementation 'com.braintreepayments.api:paypal:4.37.0'
     implementation 'com.facebook.react:react-native:+'
 }
 
