@@ -118,38 +118,36 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       );
       return;
     }
-    currentActivity.runOnUiThread(() -> {
-      dropInClient.setListener(new DropInListener() {
-        @Override
-        public void onDropInSuccess(@NonNull DropInResult dropInResult) {
-          PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
+    dropInClient.setListener(new DropInListener() {
+      @Override
+      public void onDropInSuccess(@NonNull DropInResult dropInResult) {
+        PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
 
-          if (isVerifyingThreeDSecure && paymentMethodNonce instanceof CardNonce) {
-            CardNonce cardNonce = (CardNonce) paymentMethodNonce;
-            ThreeDSecureInfo threeDSecureInfo = cardNonce.getThreeDSecureInfo();
-            if (!threeDSecureInfo.isLiabilityShiftPossible()) {
-              promise.reject("3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", "3D Secure liability cannot be shifted");
-            } else if (!threeDSecureInfo.isLiabilityShifted()) {
-              promise.reject("3DSECURE_LIABILITY_NOT_SHIFTED", "3D Secure liability was not shifted");
-            } else {
-              resolvePayment(dropInResult, promise);
-            }
+        if (isVerifyingThreeDSecure && paymentMethodNonce instanceof CardNonce) {
+          CardNonce cardNonce = (CardNonce) paymentMethodNonce;
+          ThreeDSecureInfo threeDSecureInfo = cardNonce.getThreeDSecureInfo();
+          if (!threeDSecureInfo.isLiabilityShiftPossible()) {
+            promise.reject("3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", "3D Secure liability cannot be shifted");
+          } else if (!threeDSecureInfo.isLiabilityShifted()) {
+            promise.reject("3DSECURE_LIABILITY_NOT_SHIFTED", "3D Secure liability was not shifted");
           } else {
             resolvePayment(dropInResult, promise);
           }
+        } else {
+          resolvePayment(dropInResult, promise);
         }
+      }
 
-        @Override
-        public void onDropInFailure(@NonNull Exception exception) {
-          if (exception instanceof UserCanceledException) {
-            promise.reject("USER_CANCELLATION", "The user cancelled");
-          } else {
-            promise.reject(exception.getMessage(), exception.getMessage());
-          }
+      @Override
+      public void onDropInFailure(@NonNull Exception exception) {
+        if (exception instanceof UserCanceledException) {
+          promise.reject("USER_CANCELLATION", "The user cancelled");
+        } else {
+          promise.reject(exception.getMessage(), exception.getMessage());
         }
-      });
-      dropInClient.launchDropIn(dropInRequest);
+      }
     });
+    dropInClient.launchDropIn(dropInRequest);
   }
 
   @ReactMethod
