@@ -3,22 +3,28 @@
           package="tech.power.RNBraintreeDropIn">
 
     <application>
-        <!--
-            Crash fix: DropInActivity.onNewIntent() calls setIntent(redirectIntent) when PayPal
-            auth returns, overwriting the current intent (which no longer contains DropInRequest).
-            Chrome Custom Tab closing then triggers a keyboard/soft-input config change, which
-            recreates DropInActivity. In onCreate(), getDropInRequest() calls
-            getIntent().getParcelableExtra(EXTRA_CHECKOUT_REQUEST_BUNDLE) on the redirect intent
-            → returns null → NullPointerException at bundle.setClassLoader().
-            Adding configChanges prevents recreation on the config events triggered by
-            Chrome Custom Tab appearing/disappearing, so the existing DropInActivity instance
-            (which still holds the original DropInRequest) is kept alive.
-        -->
         <activity
             android:name="com.braintreepayments.api.DropInActivity"
+            android:theme="@style/bt_drop_in_activity_theme"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|uiMode|fontScale|smallestScreenSize"
-            tools:replace="android:configChanges" />
+            android:exported="true"
+            tools:node="replace" />
+
+        <activity
+            android:name=".BraintreeRedirectActivity"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <data android:scheme="${applicationId}.braintree" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
-  

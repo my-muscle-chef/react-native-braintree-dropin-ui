@@ -44,8 +44,10 @@ import java.util.Objects;
 
 public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
   private boolean isVerifyingThreeDSecure = false;
-  private static DropInClient dropInClient = null;
-  private static String clientToken = null;
+  static DropInClient dropInClient = null;
+  static String clientToken = null;
+  static DropInRequest lastDropInRequest = null;
+  static volatile boolean dropInActive = false;
 
   private static GooglePayClient googlePayClient = null;
   private static Promise pendingGooglePayPromise = null;
@@ -206,9 +208,12 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       return;
     }
     currentActivity.runOnUiThread(() -> {
+      lastDropInRequest = dropInRequest;
+      dropInActive = true;
       dropInClient.setListener(new DropInListener() {
         @Override
         public void onDropInSuccess(@NonNull DropInResult dropInResult) {
+          dropInActive = false;
           PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
 
           if (isVerifyingThreeDSecure && paymentMethodNonce instanceof CardNonce) {
@@ -228,6 +233,7 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
         @Override
         public void onDropInFailure(@NonNull Exception exception) {
+          dropInActive = false;
           if (exception instanceof UserCanceledException) {
             promise.reject("USER_CANCELLATION", "The user cancelled");
           } else {
