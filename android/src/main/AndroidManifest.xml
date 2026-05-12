@@ -15,8 +15,6 @@
             android:name=".BraintreeRedirectActivity"
             android:exported="true"
             android:noHistory="true"
-            android:taskAffinity=""
-            android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
