@@ -1,5 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools"
           package="tech.power.RNBraintreeDropIn">
+
+    <application>
+        <!--
+            Crash fix: DropInActivity.onNewIntent() calls setIntent(redirectIntent) when PayPal
+            auth returns, overwriting the current intent (which no longer contains DropInRequest).
+            Chrome Custom Tab closing then triggers a keyboard/soft-input config change, which
+            recreates DropInActivity. In onCreate(), getDropInRequest() calls
+            getIntent().getParcelableExtra(EXTRA_CHECKOUT_REQUEST_BUNDLE) on the redirect intent
+            → returns null → NullPointerException at bundle.setClassLoader().
+            Adding configChanges prevents recreation on the config events triggered by
+            Chrome Custom Tab appearing/disappearing, so the existing DropInActivity instance
+            (which still holds the original DropInRequest) is kept alive.
+        -->
+        <activity
+            android:name="com.braintreepayments.api.DropInActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|uiMode|fontScale|smallestScreenSize"
+            tools:replace="android:configChanges" />
+    </application>
 
 </manifest>
   
