@@ -20,6 +20,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -46,7 +47,7 @@ public class RNBTCardFormFragment extends DialogFragment {
     private EditText etCvv;
     private TextView btnSubmit;
     private ProgressBar progressBar;
-    private TextView cardBrandLabel;
+    private ImageView cardNetworkIcon;
 
     private boolean cardFormatting = false;
     private boolean expiryFormatting = false;
@@ -166,17 +167,13 @@ public class RNBTCardFormFragment extends DialogFragment {
         etCardNumber.addTextChangedListener(cardNumberWatcher);
         cardRow.addView(etCardNumber);
 
-        cardBrandLabel = new TextView(requireContext());
-        cardBrandLabel.setTextSize(11);
-        cardBrandLabel.setTypeface(Typeface.DEFAULT_BOLD);
-        cardBrandLabel.setPadding(dp(6), dp(3), dp(6), dp(3));
-        cardBrandLabel.setTextColor(Color.WHITE);
-        cardBrandLabel.setVisibility(View.GONE);
-        GradientDrawable brandBg = new GradientDrawable();
-        brandBg.setCornerRadius(dp(4));
-        brandBg.setColor(ACCENT);
-        cardBrandLabel.setBackground(brandBg);
-        cardRow.addView(cardBrandLabel);
+        cardNetworkIcon = new ImageView(requireContext());
+        cardNetworkIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(58), dp(30));
+        iconParams.setMargins(0, 0, dp(4), 0);
+        cardNetworkIcon.setLayoutParams(iconParams);
+        cardNetworkIcon.setVisibility(View.GONE);
+        cardRow.addView(cardNetworkIcon);
 
         container.addView(cardRow);
         container.addView(buildHSeparator());
@@ -246,12 +243,12 @@ public class RNBTCardFormFragment extends DialogFragment {
         frame.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
 
         GradientDrawable btnBg = new GradientDrawable();
-        btnBg.setColor(ACCENT);
+        btnBg.setColor(sDarkTheme ? Color.WHITE : Color.BLACK);
         btnBg.setCornerRadius(dp(14));
 
         btnSubmit = new TextView(requireContext());
         btnSubmit.setText("Add Card");
-        btnSubmit.setTextColor(Color.WHITE);
+        btnSubmit.setTextColor(sDarkTheme ? Color.BLACK : Color.WHITE);
         btnSubmit.setTextSize(17);
         btnSubmit.setTypeface(Typeface.DEFAULT_BOLD);
         btnSubmit.setGravity(Gravity.CENTER);
@@ -262,7 +259,7 @@ public class RNBTCardFormFragment extends DialogFragment {
 
         progressBar = new ProgressBar(requireContext(), null, android.R.attr.progressBarStyleSmall);
         progressBar.getIndeterminateDrawable().setColorFilter(
-            new PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN));
+            new PorterDuffColorFilter(sDarkTheme ? Color.BLACK : Color.WHITE, PorterDuff.Mode.SRC_IN));
         FrameLayout.LayoutParams pbParams = new FrameLayout.LayoutParams(dp(24), dp(24));
         pbParams.gravity = Gravity.CENTER;
         progressBar.setLayoutParams(pbParams);
@@ -280,25 +277,30 @@ public class RNBTCardFormFragment extends DialogFragment {
             try {
                 int p4 = Integer.parseInt(digits.substring(0, 4));
                 if (p4 >= 2221 && p4 <= 2720) return "MC";
+                if (p4 >= 3000 && p4 <= 3059) return "DINERS";
             } catch (NumberFormatException ignored) {}
         }
         if (digits.length() >= 2) {
             try {
                 int p2 = Integer.parseInt(digits.substring(0, 2));
                 if (p2 >= 51 && p2 <= 55) return "MC";
+                if (p2 == 35) return "JCB";
+                if (p2 == 36 || p2 == 38) return "DINERS";
             } catch (NumberFormatException ignored) {}
         }
         if (digits.startsWith("6011") || digits.startsWith("65")) return "DISC";
         return "";
     }
 
-    private int brandColor(String brand) {
+    private String cardBrandImageName(String brand) {
         switch (brand) {
-            case "VISA": return 0xFF1A1F71;
-            case "MC":   return 0xFFEB001B;
-            case "AMEX": return 0xFF007BC1;
-            case "DISC": return 0xFFFF6600;
-            default:     return ACCENT;
+            case "VISA":   return "visa";
+            case "MC":     return "mastercard";
+            case "AMEX":   return "amex";
+            case "DISC":   return "discover";
+            case "JCB":    return "jcb";
+            case "DINERS": return "diners";
+            default:       return null;
         }
     }
 
@@ -334,15 +336,14 @@ public class RNBTCardFormFragment extends DialogFragment {
 
             if (!brand.equals(currentCardBrand)) {
                 currentCardBrand = brand;
-                if (!brand.isEmpty()) {
-                    cardBrandLabel.setText(brand);
-                    GradientDrawable bg = new GradientDrawable();
-                    bg.setCornerRadius(dp(4));
-                    bg.setColor(brandColor(brand));
-                    cardBrandLabel.setBackground(bg);
-                    cardBrandLabel.setVisibility(View.VISIBLE);
+                String imageName = cardBrandImageName(brand);
+                int resId = imageName != null ? requireContext().getResources().getIdentifier(
+                        imageName, "drawable", requireContext().getPackageName()) : 0;
+                if (resId != 0) {
+                    cardNetworkIcon.setImageResource(resId);
+                    cardNetworkIcon.setVisibility(View.VISIBLE);
                 } else {
-                    cardBrandLabel.setVisibility(View.GONE);
+                    cardNetworkIcon.setVisibility(View.GONE);
                 }
             }
             cardFormatting = false;

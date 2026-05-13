@@ -12,6 +12,7 @@ Pod::Spec.new do |s|
   s.platform     = :ios, "12.0"
   s.source       = { :git => "https://github.com/BradyShober/react-native-braintree-dropin-ui.git", :tag => "master" }
   s.source_files  = "ios/**/*.{h,m}"
+  s.resource_bundles = { 'CardNetworks' => ['ios/CardNetworks.xcassets'] }
   s.requires_arc = true
   s.dependency    'React'
   s.dependency    'Braintree', "~> 5.27"

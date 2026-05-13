@@ -20,7 +20,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 @property (nonatomic, copy) BTCardFormCancel onCancel;
 
 @property (nonatomic, strong) UITextField *cardNumberField;
-@property (nonatomic, strong) UILabel *cardTypeBadge;
+@property (nonatomic, strong) UIImageView *cardNetworkIcon;
 @property (nonatomic, strong) UITextField *expiryField;
 @property (nonatomic, strong) UITextField *cvvField;
 @property (nonatomic, strong) UIButton *submitButton;
@@ -89,16 +89,12 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     self.cardNumberField = [self makeField:@"Card Number" keyboard:UIKeyboardTypeNumberPad secure:NO];
     [self.cardNumberField addTarget:self action:@selector(cardNumberChanged:) forControlEvents:UIControlEventEditingChanged];
 
-    // Card type badge as right accessory of card number field
-    self.cardTypeBadge = [[UILabel alloc] initWithFrame:CGRectMake(8, 15, 58, 22)];
-    self.cardTypeBadge.font = [self boldFontOfSize:11];
-    self.cardTypeBadge.textColor = [UIColor whiteColor];
-    self.cardTypeBadge.textAlignment = NSTextAlignmentCenter;
-    self.cardTypeBadge.layer.cornerRadius = 5;
-    self.cardTypeBadge.layer.masksToBounds = YES;
-    self.cardTypeBadge.hidden = YES;
+    // Card network icon as right accessory of card number field
+    self.cardNetworkIcon = [[UIImageView alloc] initWithFrame:CGRectMake(8, 11, 58, 30)];
+    self.cardNetworkIcon.contentMode = UIViewContentModeScaleAspectFit;
+    self.cardNetworkIcon.hidden = YES;
     UIView *badgeWrapper = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 74, 52)];
-    [badgeWrapper addSubview:self.cardTypeBadge];
+    [badgeWrapper addSubview:self.cardNetworkIcon];
     self.cardNumberField.rightView = badgeWrapper;
     self.cardNumberField.rightViewMode = UITextFieldViewModeAlways;
 
@@ -130,8 +126,8 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     // Submit button
     self.submitButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.submitButton setTitle:@"Add Card" forState:UIControlStateNormal];
-    self.submitButton.backgroundColor = [UIColor systemBlueColor];
-    [self.submitButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.submitButton.backgroundColor = [UIColor labelColor];
+    [self.submitButton setTitleColor:[UIColor systemBackgroundColor] forState:UIControlStateNormal];
     self.submitButton.titleLabel.font = [self boldFontOfSize:17];
     self.submitButton.layer.cornerRadius = 14;
     self.submitButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -139,7 +135,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 
     // Activity indicator inside the submit button
     self.activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    self.activityIndicator.color = [UIColor whiteColor];
+    self.activityIndicator.color = [UIColor systemBackgroundColor];
     self.activityIndicator.translatesAutoresizingMaskIntoConstraints = NO;
     self.activityIndicator.hidesWhenStopped = YES;
     [self.submitButton addSubview:self.activityIndicator];
@@ -240,27 +236,15 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     return RNBTCardNetworkUnknown;
 }
 
-- (NSString *)networkName:(RNBTCardNetwork)network {
+- (NSString *)networkImageName:(RNBTCardNetwork)network {
     switch (network) {
-        case RNBTCardNetworkVisa:        return @"VISA";
-        case RNBTCardNetworkMastercard:  return @"MC";
-        case RNBTCardNetworkAmex:        return @"AMEX";
-        case RNBTCardNetworkDiscover:    return @"DISC";
-        case RNBTCardNetworkJCB:         return @"JCB";
-        case RNBTCardNetworkDiners:      return @"DINERS";
-        default:                         return @"";
-    }
-}
-
-- (UIColor *)networkColor:(RNBTCardNetwork)network {
-    switch (network) {
-        case RNBTCardNetworkVisa:        return [UIColor colorWithRed:0.10 green:0.12 blue:0.44 alpha:1.0];
-        case RNBTCardNetworkMastercard:  return [UIColor colorWithRed:0.92 green:0.00 blue:0.11 alpha:1.0];
-        case RNBTCardNetworkAmex:        return [UIColor colorWithRed:0.18 green:0.47 blue:0.74 alpha:1.0];
-        case RNBTCardNetworkDiscover:    return [UIColor colorWithRed:1.00 green:0.40 blue:0.00 alpha:1.0];
-        case RNBTCardNetworkJCB:         return [UIColor colorWithRed:0.00 green:0.45 blue:0.18 alpha:1.0];
-        case RNBTCardNetworkDiners:      return [UIColor colorWithRed:0.40 green:0.40 blue:0.40 alpha:1.0];
-        default:                         return [UIColor systemGrayColor];
+        case RNBTCardNetworkVisa:        return @"visa";
+        case RNBTCardNetworkMastercard:  return @"mastercard";
+        case RNBTCardNetworkAmex:        return @"amex";
+        case RNBTCardNetworkDiscover:    return @"discover";
+        case RNBTCardNetworkJCB:         return @"jcb";
+        case RNBTCardNetworkDiners:      return @"diners";
+        default:                         return nil;
     }
 }
 
@@ -301,11 +285,16 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     self.detectedCardNetwork = network;
 
     if (network != RNBTCardNetworkUnknown) {
-        self.cardTypeBadge.text = [self networkName:network];
-        self.cardTypeBadge.backgroundColor = [self networkColor:network];
-        self.cardTypeBadge.hidden = NO;
+        NSString *imageName = [self networkImageName:network];
+        NSBundle *libBundle = [NSBundle bundleForClass:[self class]];
+        NSURL *bundleURL = [libBundle URLForResource:@"CardNetworks" withExtension:@"bundle"];
+        NSBundle *cardBundle = bundleURL ? [NSBundle bundleWithURL:bundleURL] : libBundle;
+        UIImage *img = [UIImage imageNamed:imageName inBundle:cardBundle compatibleWithTraitCollection:nil]
+                    ?: [UIImage systemImageNamed:@"creditcard.fill"];
+        self.cardNetworkIcon.image = img;
+        self.cardNetworkIcon.hidden = NO;
     } else {
-        self.cardTypeBadge.hidden = YES;
+        self.cardNetworkIcon.hidden = YES;
     }
 
     NSUInteger maxDigits = [self maxDigitsForNetwork:network];

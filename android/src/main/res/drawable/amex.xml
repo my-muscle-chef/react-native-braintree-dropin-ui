@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+    <!-- Blue card background (AMEX brand colour) -->
+    <path
+        android:fillColor="#007BC1"
+        android:pathData="M5,7 L27,7 Q30,7 30,10 L30,22 Q30,25 27,25 L5,25 Q2,25 2,22 L2,10 Q2,7 5,7 Z"/>
+    <!-- White "A" lettermark centred on card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,9 L10,23 L12.5,23 L14.5,18.5 L17.5,18.5 L19.5,23 L22,23 Z"/>
+    <!-- Blue inner cutout to hollow the A -->
+    <path
+        android:fillColor="#007BC1"
+        android:pathData="M16,12.5 L13.3,18 L18.7,18 Z"/>
+</vector>
