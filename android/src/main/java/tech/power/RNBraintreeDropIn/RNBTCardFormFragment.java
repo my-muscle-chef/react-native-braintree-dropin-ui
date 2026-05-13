@@ -102,10 +102,17 @@ public class RNBTCardFormFragment extends DialogFragment {
         return root;
     }
 
+    private int getStatusBarHeight() {
+        int id = requireContext().getResources().getIdentifier("status_bar_height", "dimen", "android");
+        return id > 0 ? requireContext().getResources().getDimensionPixelSize(id) : 0;
+    }
+
     private View buildNavBar() {
+        int sbHeight = getStatusBarHeight();
         FrameLayout navBar = new FrameLayout(requireContext());
-        navBar.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
+        navBar.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56) + sbHeight));
         navBar.setBackgroundColor(containerColor());
+        navBar.setPadding(0, sbHeight, 0, 0);
 
         View border = new View(requireContext());
         border.setBackgroundColor(separatorColor());
