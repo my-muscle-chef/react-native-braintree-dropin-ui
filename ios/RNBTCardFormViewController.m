@@ -105,6 +105,17 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     self.expiryField = [self makeField:@"MM / YY" keyboard:UIKeyboardTypeNumberPad secure:NO];
     self.cvvField    = [self makeField:@"CVV"     keyboard:UIKeyboardTypeNumberPad secure:YES];
     [self.expiryField addTarget:self action:@selector(expiryChanged:) forControlEvents:UIControlEventEditingChanged];
+    [self.cvvField addTarget:self action:@selector(updateSubmitButtonState) forControlEvents:UIControlEventEditingChanged];
+
+    // Shadow wrapper — separate from container because masksToBounds clips layer shadows
+    UIView *shadowView = [[UIView alloc] init];
+    shadowView.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    shadowView.layer.cornerRadius = 12;
+    shadowView.layer.shadowColor = [UIColor blackColor].CGColor;
+    shadowView.layer.shadowOpacity = 0.18;
+    shadowView.layer.shadowRadius = 16;
+    shadowView.layer.shadowOffset = CGSizeMake(0, 6);
+    shadowView.translatesAutoresizingMaskIntoConstraints = NO;
 
     // Grouped container
     UIView *container = [[UIView alloc] init];
@@ -136,6 +147,8 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     self.submitButton.layer.cornerRadius = 14;
     self.submitButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.submitButton addTarget:self action:@selector(submitTapped) forControlEvents:UIControlEventTouchUpInside];
+    self.submitButton.enabled = NO;
+    self.submitButton.alpha = 0.4;
 
     // Activity indicator inside the submit button
     self.activityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -144,6 +157,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     self.activityIndicator.hidesWhenStopped = YES;
     [self.submitButton addSubview:self.activityIndicator];
 
+    [self.view addSubview:shadowView];
     [self.view addSubview:container];
     [self.view addSubview:self.submitButton];
 
@@ -151,6 +165,12 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     CGFloat fieldHeight = 52;
 
     [NSLayoutConstraint activateConstraints:@[
+        // Shadow wrapper (matches container bounds exactly)
+        [shadowView.topAnchor constraintEqualToAnchor:safe.topAnchor constant:24],
+        [shadowView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
+        [shadowView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
+        [shadowView.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+
         // Container
         [container.topAnchor constraintEqualToAnchor:safe.topAnchor constant:24],
         [container.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
@@ -188,7 +208,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
         [self.cvvField.heightAnchor constraintEqualToConstant:fieldHeight],
 
         // Submit button
-        [self.submitButton.topAnchor constraintEqualToAnchor:container.bottomAnchor constant:24],
+        [self.submitButton.topAnchor constraintEqualToAnchor:container.bottomAnchor constant:40],
         [self.submitButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
         [self.submitButton.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
         [self.submitButton.heightAnchor constraintEqualToConstant:56],
@@ -306,6 +326,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     field.text = [self formatCardDigits:digits network:network];
 
     self.cvvField.placeholder = (network == RNBTCardNetworkAmex) ? @"CVV (4)" : @"CVV";
+    [self updateSubmitButtonState];
 }
 
 - (void)expiryChanged:(UITextField *)field {
@@ -316,6 +337,21 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     field.text = digits.length >= 3
         ? [NSString stringWithFormat:@"%@ / %@", [digits substringToIndex:2], [digits substringFromIndex:2]]
         : digits;
+    [self updateSubmitButtonState];
+}
+
+- (void)updateSubmitButtonState {
+    NSString *cardDigits = [[self.cardNumberField.text componentsSeparatedByCharactersInSet:
+                             [[NSCharacterSet decimalDigitCharacterSet] invertedSet]]
+                            componentsJoinedByString:@""];
+    NSString *expiryDigits = [[self.expiryField.text componentsSeparatedByCharactersInSet:
+                               [[NSCharacterSet decimalDigitCharacterSet] invertedSet]]
+                              componentsJoinedByString:@""];
+    NSString *cvv = self.cvvField.text ?: @"";
+    NSUInteger minCvv = (self.detectedCardNetwork == RNBTCardNetworkAmex) ? 4 : 3;
+    BOOL valid = cardDigits.length >= 13 && expiryDigits.length >= 4 && cvv.length >= minCvv;
+    self.submitButton.enabled = valid;
+    self.submitButton.alpha = valid ? 1.0 : 0.4;
 }
 
 #pragma mark - Actions

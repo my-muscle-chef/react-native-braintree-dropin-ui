@@ -95,7 +95,7 @@ public class RNBTCardFormFragment extends DialogFragment {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         content.addView(buildFormContainer());
-        content.addView(buildSpacing(dp(16)));
+        content.addView(buildSpacing(dp(40)));
         content.addView(buildSubmitButton());
 
         root.addView(content);
@@ -208,6 +208,7 @@ public class RNBTCardFormFragment extends DialogFragment {
         vSep.setLayoutParams(vSepParams);
 
         etCvv = buildField("CVV", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD, 4);
+        etCvv.addTextChangedListener(cvvWatcher);
         LinearLayout.LayoutParams cvvParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
         cvvParams.leftMargin = dp(12);
         cvvParams.rightMargin = dp(16);
@@ -265,6 +266,8 @@ public class RNBTCardFormFragment extends DialogFragment {
         btnSubmit.setTypeface(Typeface.DEFAULT_BOLD);
         btnSubmit.setGravity(Gravity.CENTER);
         btnSubmit.setBackground(btnBg);
+        btnSubmit.setEnabled(false);
+        btnSubmit.setAlpha(0.4f);
         btnSubmit.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         btnSubmit.setOnClickListener(v -> submitCard());
@@ -371,6 +374,7 @@ public class RNBTCardFormFragment extends DialogFragment {
                 }
             }
             cardFormatting = false;
+            updateSubmitButton();
         }
     };
 
@@ -387,8 +391,27 @@ public class RNBTCardFormFragment extends DialogFragment {
             etExpiry.setText(formatted);
             etExpiry.setSelection(formatted.length());
             expiryFormatting = false;
+            updateSubmitButton();
         }
     };
+
+    private final TextWatcher cvvWatcher = new TextWatcher() {
+        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+        @Override public void afterTextChanged(Editable s) {}
+        @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+            updateSubmitButton();
+        }
+    };
+
+    private void updateSubmitButton() {
+        String rawNumber = etCardNumber.getText().toString().replace(" ", "");
+        String expiryDigits = etExpiry.getText().toString().replaceAll("[^0-9]", "");
+        String cvv = etCvv.getText() != null ? etCvv.getText().toString().trim() : "";
+        int minCvv = "AMEX".equals(currentCardBrand) ? 4 : 3;
+        boolean valid = rawNumber.length() >= 13 && expiryDigits.length() >= 4 && cvv.length() >= minCvv;
+        btnSubmit.setEnabled(valid);
+        btnSubmit.setAlpha(valid ? 1f : 0.4f);
+    }
 
     private void submitCard() {
         String rawNumber = etCardNumber.getText().toString().replace(" ", "");
