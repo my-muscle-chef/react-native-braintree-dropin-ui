@@ -179,6 +179,11 @@ public class RNBTCardFormFragment extends DialogFragment {
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(58), dp(30));
         iconParams.setMargins(0, 0, dp(4), 0);
         cardNetworkIcon.setLayoutParams(iconParams);
+        GradientDrawable iconBorder = new GradientDrawable();
+        iconBorder.setColor(Color.TRANSPARENT);
+        iconBorder.setStroke(1, Color.parseColor("#C7C7CC"));
+        iconBorder.setCornerRadius(dp(4));
+        cardNetworkIcon.setBackground(iconBorder);
         cardNetworkIcon.setVisibility(View.GONE);
         cardRow.addView(cardNetworkIcon);
 
@@ -311,6 +316,18 @@ public class RNBTCardFormFragment extends DialogFragment {
         }
     }
 
+    private String cardBrandDisplayName(String brand) {
+        switch (brand) {
+            case "VISA":   return "Visa";
+            case "MC":     return "MasterCard";
+            case "AMEX":   return "American Express";
+            case "DISC":   return "Discover";
+            case "JCB":    return "JCB";
+            case "DINERS": return "Diners";
+            default:       return "Card";
+        }
+    }
+
     private final TextWatcher cardNumberWatcher = new TextWatcher() {
         @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
         @Override public void afterTextChanged(Editable s) {}
@@ -422,7 +439,7 @@ public class RNBTCardFormFragment extends DialogFragment {
                 if (p != null) {
                     WritableMap jsResult = Arguments.createMap();
                     jsResult.putString("nonce", cardNonce.getString());
-                    jsResult.putString("type", "Card");
+                    jsResult.putString("type", cardBrandDisplayName(currentCardBrand));
                     jsResult.putString("description", "Ending in " + cardNonce.getLastFour());
                     jsResult.putBoolean("isDefault", false);
                     jsResult.putString("deviceData", "");

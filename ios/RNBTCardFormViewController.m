@@ -92,6 +92,10 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     // Card network icon as right accessory of card number field
     self.cardNetworkIcon = [[UIImageView alloc] initWithFrame:CGRectMake(8, 11, 58, 30)];
     self.cardNetworkIcon.contentMode = UIViewContentModeScaleAspectFit;
+    self.cardNetworkIcon.layer.borderColor = [UIColor systemGray4Color].CGColor;
+    self.cardNetworkIcon.layer.borderWidth = 1.0;
+    self.cardNetworkIcon.layer.cornerRadius = 4.0;
+    self.cardNetworkIcon.clipsToBounds = YES;
     self.cardNetworkIcon.hidden = YES;
     UIView *badgeWrapper = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 74, 52)];
     [badgeWrapper addSubview:self.cardNetworkIcon];
