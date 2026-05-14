@@ -1,5 +1,7 @@
 #import "RNBTCardFormViewController.h"
-#import "BraintreeDropIn.h"
+
+@import BraintreeCard;
+@import BraintreeCore;
 
 typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     RNBTCardNetworkUnknown,
@@ -13,7 +15,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 
 @interface RNBTCardFormViewController () <UITextFieldDelegate>
 
-@property (nonatomic, strong) BTAPIClient *apiClient;
+@property (nonatomic, copy) NSString *authorization;
 @property (nonatomic, copy) NSString *fontFamily;
 @property (nonatomic, copy) NSString *boldFontFamily;
 @property (nonatomic, copy) BTCardFormCompletion completion;
@@ -32,14 +34,14 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
 
 @implementation RNBTCardFormViewController
 
-- (instancetype)initWithAPIClient:(BTAPIClient *)apiClient
-                       fontFamily:(NSString * _Nullable)fontFamily
-                   boldFontFamily:(NSString * _Nullable)boldFontFamily
-                       completion:(BTCardFormCompletion)completion
-                         onCancel:(BTCardFormCancel)onCancel {
+- (instancetype)initWithAuthorization:(NSString *)authorization
+                           fontFamily:(NSString * _Nullable)fontFamily
+                       boldFontFamily:(NSString * _Nullable)boldFontFamily
+                           completion:(BTCardFormCompletion)completion
+                             onCancel:(BTCardFormCancel)onCancel {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
-        _apiClient = apiClient;
+        _authorization = [authorization copy];
         _fontFamily = [fontFamily copy];
         _boldFontFamily = [boldFontFamily copy];
         _completion = [completion copy];
@@ -407,7 +409,7 @@ typedef NS_ENUM(NSInteger, RNBTCardNetwork) {
     [self.submitButton setTitle:@"" forState:UIControlStateNormal];
     self.submitButton.enabled = NO;
 
-    BTCardClient *cardClient = [[BTCardClient alloc] initWithAPIClient:self.apiClient];
+    BTCardClient *cardClient = [[BTCardClient alloc] initWithAuthorization:self.authorization];
     BTCard *card = [[BTCard alloc] init];
     card.number          = digits;
     card.expirationMonth = [NSString stringWithFormat:@"%02ld", (long)month];

@@ -2,21 +2,34 @@ package tech.power.RNBraintreeDropIn;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 
+import androidx.activity.ComponentActivity;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.FragmentActivity;
 
-import com.braintreepayments.api.BrowserSwitchResult;
-import com.braintreepayments.api.BraintreeClient;
-import com.braintreepayments.api.DataCollector;
 import com.braintreepayments.api.Card;
 import com.braintreepayments.api.CardClient;
-import com.braintreepayments.api.DropInClient;
-import com.braintreepayments.api.DropInListener;
-import com.braintreepayments.api.DropInPaymentMethod;
-import com.braintreepayments.api.ThreeDSecureRequest;
-import com.braintreepayments.api.UserCanceledException;
-import com.facebook.react.bridge.ActivityEventListener;
+import com.braintreepayments.api.CardResult;
+import com.braintreepayments.api.DataCollector;
+import com.braintreepayments.api.DataCollectorRequest;
+import com.braintreepayments.api.DataCollectorResult;
+import com.braintreepayments.api.GooglePayClient;
+import com.braintreepayments.api.GooglePayLauncher;
+import com.braintreepayments.api.GooglePayPaymentAuthRequest;
+import com.braintreepayments.api.GooglePayRequest;
+import com.braintreepayments.api.GooglePayResult;
+import com.braintreepayments.api.PayPalAccountNonce;
+import com.braintreepayments.api.PayPalCheckoutRequest;
+import com.braintreepayments.api.PayPalClient;
+import com.braintreepayments.api.PayPalLauncher;
+import com.braintreepayments.api.PayPalPaymentAuthRequest;
+import com.braintreepayments.api.PayPalPaymentAuthResult;
+import com.braintreepayments.api.PayPalPendingRequest;
+import com.braintreepayments.api.PayPalResult;
+import com.braintreepayments.api.PayPalVaultRequest;
+import com.google.android.gms.wallet.WalletConstants;
+
 import com.facebook.react.bridge.BaseActivityEventListener;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -25,100 +38,36 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Promise;
-import com.braintreepayments.api.DropInRequest;
-import com.braintreepayments.api.DropInResult;
-import com.braintreepayments.api.PaymentMethodNonce;
-import com.braintreepayments.api.CardNonce;
-import com.braintreepayments.api.ThreeDSecureInfo;
-import com.braintreepayments.api.GooglePayClient;
-import com.braintreepayments.api.GooglePayRequest;
-import com.braintreepayments.api.PayPalAccountNonce;
-import com.braintreepayments.api.PayPalCheckoutRequest;
-import com.braintreepayments.api.PayPalClient;
-import com.braintreepayments.api.PayPalRequest;
-import com.braintreepayments.api.PayPalVaultRequest;
-import com.google.android.gms.wallet.TransactionInfo;
-import com.google.android.gms.wallet.WalletConstants;
 
-import java.util.Objects;
+import kotlin.Unit;
 
 public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
-  private boolean isVerifyingThreeDSecure = false;
-  static DropInClient dropInClient = null;
-  static String clientToken = null;
-  static DropInRequest lastDropInRequest = null;
-  static volatile boolean dropInActive = false;
 
   private static GooglePayClient googlePayClient = null;
   private static Promise pendingGooglePayPromise = null;
   private static String pendingGooglePayDeviceData = null;
 
   private static PayPalClient payPalClient = null;
+  private static PayPalLauncher payPalLauncher = null;
+  private static PayPalPendingRequest.Started pendingPayPalPendingRequest = null;
   private static Promise pendingPayPalPromise = null;
   private static String pendingPayPalDeviceData = null;
 
-  public static void initGooglePayLauncher(FragmentActivity activity) {}
-
-  public static void initPayPalLauncher(FragmentActivity activity) {}
-
-  public static void initDropInClient(FragmentActivity activity) {
-    dropInClient = new DropInClient(activity, callback -> {
-      if (clientToken != null) {
-        callback.onSuccess(clientToken);
-      } else {
-        callback.onFailure(new Exception("Client token is null"));
-      }
-    });
-  }
-
-  private final ActivityEventListener mActivityEventListener = new BaseActivityEventListener() {
-    @Override
-    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
-      if (googlePayClient != null && pendingGooglePayPromise != null) {
-        googlePayClient.onActivityResult(resultCode, data, (nonce, error) -> {
-          Promise p = pendingGooglePayPromise;
-          pendingGooglePayPromise = null;
-          if (p == null) return;
-          if (error != null) {
-            if (error instanceof UserCanceledException) {
-              p.reject("USER_CANCELLATION", "The user cancelled");
-            } else {
-              p.reject("GOOGLE_PAY_ERROR", error.getMessage());
-            }
-          } else if (nonce != null) {
-            WritableMap jsResult = Arguments.createMap();
-            jsResult.putString("nonce", nonce.getString());
-            jsResult.putString("type", "Google Pay");
-            jsResult.putString("description", "Google Pay");
-            jsResult.putBoolean("isDefault", nonce.isDefault());
-            jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
-            pendingGooglePayDeviceData = null;
-            p.resolve(jsResult);
-          } else {
-            p.reject("NO_NONCE", "No Google Pay nonce returned");
-          }
-        });
-      }
-    }
-
+  private final BaseActivityEventListener mActivityEventListener = new BaseActivityEventListener() {
     @Override
     public void onNewIntent(Intent intent) {
-      if (payPalClient == null || pendingPayPalPromise == null) return;
-      Activity currentActivity = getCurrentActivity();
-      if (currentActivity == null) return;
-      BrowserSwitchResult result = payPalClient.parseBrowserSwitchResult(currentActivity, intent);
-      if (result == null) return;
-      payPalClient.onBrowserSwitchResult(result, (nonce, error) -> {
-        Promise p = pendingPayPalPromise;
-        pendingPayPalPromise = null;
-        if (p == null) return;
-        if (error != null) {
-          if (error instanceof UserCanceledException) {
-            p.reject("USER_CANCELLATION", "The user cancelled");
-          } else {
-            p.reject("PAYPAL_ERROR", error.getMessage());
-          }
-        } else if (nonce != null) {
+      if (payPalLauncher == null || pendingPayPalPendingRequest == null || pendingPayPalPromise == null) return;
+
+      PayPalPaymentAuthResult authResult = payPalLauncher.handleReturnToApp(pendingPayPalPendingRequest, intent);
+      if (authResult instanceof PayPalPaymentAuthResult.NoResult) return; // Chrome Custom Tab minimised
+
+      pendingPayPalPendingRequest = null;
+      Promise p = pendingPayPalPromise;
+      pendingPayPalPromise = null;
+
+      payPalClient.tokenize(authResult, result -> {
+        if (result instanceof PayPalResult.Success) {
+          PayPalAccountNonce nonce = ((PayPalResult.Success) result).getNonce();
           WritableMap jsResult = Arguments.createMap();
           jsResult.putString("nonce", nonce.getString());
           jsResult.putString("type", "PayPal");
@@ -128,8 +77,10 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
           jsResult.putString("deviceData", pendingPayPalDeviceData != null ? pendingPayPalDeviceData : "");
           pendingPayPalDeviceData = null;
           p.resolve(jsResult);
+        } else if (result instanceof PayPalResult.Failure) {
+          p.reject("PAYPAL_ERROR", ((PayPalResult.Failure) result).getError().getMessage());
         } else {
-          p.reject("NO_NONCE", "No PayPal nonce returned");
+          p.reject("USER_CANCELLATION", "The user cancelled");
         }
       });
     }
@@ -141,143 +92,36 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void show(final ReadableMap options, final Promise promise) {
-    isVerifyingThreeDSecure = false;
-
-    if (!options.hasKey("clientToken")) {
-      promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
-      return;
-    }
-
-    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
-    if (currentActivity == null) {
-      promise.reject("NO_ACTIVITY", "There is no current activity");
-      return;
-    }
-
-    DropInRequest dropInRequest = new DropInRequest();
-
-    if(options.hasKey("vaultManager")) {
-      dropInRequest.setVaultManagerEnabled(options.getBoolean("vaultManager"));
-    }
-
-    if(options.hasKey("googlePay") && options.getBoolean("googlePay")){
-      GooglePayRequest googlePayRequest = new GooglePayRequest();
-      googlePayRequest.setTransactionInfo(TransactionInfo.newBuilder()
-          .setTotalPrice(Objects.requireNonNull(options.getString("orderTotal")))
-          .setTotalPriceStatus(WalletConstants.TOTAL_PRICE_STATUS_FINAL)
-          .setCurrencyCode(Objects.requireNonNull(options.getString("currencyCode")))
-          .build());
-      googlePayRequest.setBillingAddressRequired(true);
-      googlePayRequest.setGoogleMerchantId(options.getString("googlePayMerchantId"));
-
-      dropInRequest.setGooglePayDisabled(false);
-      dropInRequest.setGooglePayRequest(googlePayRequest);
-    }else{
-        dropInRequest.setGooglePayDisabled(true);
-    }
-
-    if(options.hasKey("cardDisabled")) {
-      dropInRequest.setCardDisabled(options.getBoolean("cardDisabled"));
-    }
-
-    if (options.hasKey("threeDSecure")) {
-      final ReadableMap threeDSecureOptions = options.getMap("threeDSecure");
-      if (threeDSecureOptions == null || !threeDSecureOptions.hasKey("amount")) {
-        promise.reject("NO_3DS_AMOUNT", "You must provide an amount for 3D Secure");
-        return;
-      }
-
-      isVerifyingThreeDSecure = true;
-
-      ThreeDSecureRequest threeDSecureRequest = new ThreeDSecureRequest();
-      threeDSecureRequest.setAmount(threeDSecureOptions.getString("amount"));
-
-      dropInRequest.setThreeDSecureRequest(threeDSecureRequest);
-    }
-
-    dropInRequest.setPayPalDisabled(!options.hasKey("payPal") || !options.getBoolean("payPal"));
-
-    clientToken = options.getString("clientToken");
-
-    if (dropInClient == null) {
-      promise.reject(
-        "DROP_IN_CLIENT_UNINITIALIZED",
-        "Did you forget to call RNBraintreeDropInModule.initDropInClient(this) in MainActivity.onCreate?"
-      );
-      return;
-    }
-    currentActivity.runOnUiThread(() -> {
-      lastDropInRequest = dropInRequest;
-      dropInActive = true;
-      dropInClient.setListener(new DropInListener() {
-        @Override
-        public void onDropInSuccess(@NonNull DropInResult dropInResult) {
-          dropInActive = false;
-          PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
-
-          if (isVerifyingThreeDSecure && paymentMethodNonce instanceof CardNonce) {
-            CardNonce cardNonce = (CardNonce) paymentMethodNonce;
-            ThreeDSecureInfo threeDSecureInfo = cardNonce.getThreeDSecureInfo();
-            if (!threeDSecureInfo.isLiabilityShiftPossible()) {
-              promise.reject("3DSECURE_NOT_ABLE_TO_SHIFT_LIABILITY", "3D Secure liability cannot be shifted");
-            } else if (!threeDSecureInfo.isLiabilityShifted()) {
-              promise.reject("3DSECURE_LIABILITY_NOT_SHIFTED", "3D Secure liability was not shifted");
-            } else {
-              resolvePayment(dropInResult, promise);
-            }
-          } else {
-            resolvePayment(dropInResult, promise);
-          }
-        }
-
-        @Override
-        public void onDropInFailure(@NonNull Exception exception) {
-          dropInActive = false;
-          if (exception instanceof UserCanceledException) {
-            promise.reject("USER_CANCELLATION", "The user cancelled");
-          } else {
-            promise.reject(exception.getMessage(), exception.getMessage());
-          }
-        }
-      });
-      dropInClient.launchDropIn(dropInRequest);
-    });
-  }
-
-  @ReactMethod
   public void showGooglePay(final ReadableMap options, final Promise promise) {
     if (!options.hasKey("clientToken")) {
       promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
       return;
     }
-
     if (!options.hasKey("orderTotal") || !options.hasKey("currencyCode")) {
       promise.reject("MISSING_OPTIONS", "You must provide orderTotal and currencyCode for Google Pay");
       return;
     }
 
-    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
+    ComponentActivity currentActivity = (ComponentActivity) getCurrentActivity();
     if (currentActivity == null) {
       promise.reject("NO_ACTIVITY", "There is no current activity");
       return;
     }
 
     String token = options.getString("clientToken");
-    BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
-    googlePayClient = new GooglePayClient(braintreeClient); // deprecated: no ActivityResultRegistry
+    googlePayClient = new GooglePayClient(currentActivity, token);
 
-    DataCollector dataCollector = new DataCollector(braintreeClient);
-    dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
-      pendingGooglePayDeviceData = deviceData;
+    DataCollector dataCollector = new DataCollector(currentActivity, token);
+    dataCollector.collectDeviceData(currentActivity, new DataCollectorRequest(true), dcResult -> {
+      if (dcResult instanceof DataCollectorResult.Success) {
+        pendingGooglePayDeviceData = ((DataCollectorResult.Success) dcResult).getDeviceData();
+      }
     });
 
     GooglePayRequest googlePayRequest = new GooglePayRequest();
-    googlePayRequest.setTransactionInfo(TransactionInfo.newBuilder()
-        .setTotalPrice(options.getString("orderTotal"))
-        .setTotalPriceStatus(WalletConstants.TOTAL_PRICE_STATUS_FINAL)
-        .setCurrencyCode(options.getString("currencyCode"))
-        .build());
+    googlePayRequest.setCurrencyCode(options.getString("currencyCode"));
+    googlePayRequest.setTotalPrice(options.getString("orderTotal"));
+    googlePayRequest.setTotalPriceStatus(WalletConstants.TOTAL_PRICE_STATUS_FINAL);
     googlePayRequest.setBillingAddressRequired(true);
     if (options.hasKey("googlePayMerchantId")) {
       googlePayRequest.setGoogleMerchantId(options.getString("googlePayMerchantId"));
@@ -285,12 +129,36 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
     pendingGooglePayPromise = promise;
 
-    googlePayClient.requestPayment(currentActivity, googlePayRequest, error -> {
-      if (error != null) {
-        pendingGooglePayPromise = null;
-        promise.reject("GOOGLE_PAY_ERROR", error.getMessage());
+    GooglePayLauncher googlePayLauncher = new GooglePayLauncher(currentActivity, gpResult -> {
+      Promise p = pendingGooglePayPromise;
+      pendingGooglePayPromise = null;
+      if (p == null) return Unit.INSTANCE;
+
+      if (gpResult instanceof GooglePayResult.Success) {
+        WritableMap jsResult = Arguments.createMap();
+        jsResult.putString("nonce", ((GooglePayResult.Success) gpResult).getNonce().getString());
+        jsResult.putString("type", "Google Pay");
+        jsResult.putString("description", "Google Pay");
+        jsResult.putBoolean("isDefault", ((GooglePayResult.Success) gpResult).getNonce().isDefault());
+        jsResult.putString("deviceData", pendingGooglePayDeviceData != null ? pendingGooglePayDeviceData : "");
+        pendingGooglePayDeviceData = null;
+        p.resolve(jsResult);
+      } else if (gpResult instanceof GooglePayResult.Failure) {
+        p.reject("GOOGLE_PAY_ERROR", ((GooglePayResult.Failure) gpResult).getError().getMessage());
+      } else {
+        p.reject("USER_CANCELLATION", "The user cancelled");
       }
-      // else: sheet launched — result delivered via onActivityResult
+      return Unit.INSTANCE;
+    });
+
+    googlePayClient.createPaymentAuthRequest(googlePayRequest, paymentAuthRequest -> {
+      if (paymentAuthRequest instanceof GooglePayPaymentAuthRequest.ReadyToLaunch) {
+        googlePayLauncher.launch((GooglePayPaymentAuthRequest.ReadyToLaunch) paymentAuthRequest);
+      } else if (paymentAuthRequest instanceof GooglePayPaymentAuthRequest.Failure) {
+        Promise p = pendingGooglePayPromise;
+        pendingGooglePayPromise = null;
+        if (p != null) p.reject("GOOGLE_PAY_ERROR", ((GooglePayPaymentAuthRequest.Failure) paymentAuthRequest).getError().getMessage());
+      }
     });
   }
 
@@ -301,35 +169,58 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       return;
     }
 
-    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
+    Activity currentActivity = getCurrentActivity();
     if (currentActivity == null) {
       promise.reject("NO_ACTIVITY", "There is no current activity");
       return;
     }
 
     String token = options.getString("clientToken");
-    BraintreeClient braintreeClient = new BraintreeClient(currentActivity, token);
-    payPalClient = new PayPalClient(braintreeClient); // deprecated: no ActivityResultRegistry
+    String returnUrlScheme = options.hasKey("returnUrlScheme")
+        ? options.getString("returnUrlScheme")
+        : currentActivity.getPackageName() + ".braintree://braintree-return";
+    Uri returnUri = Uri.parse(returnUrlScheme);
 
-    DataCollector dataCollector = new DataCollector(braintreeClient);
-    dataCollector.collectDeviceData(currentActivity, (deviceData, dataError) -> {
-      pendingPayPalDeviceData = deviceData;
+    payPalClient = new PayPalClient(currentActivity, token, returnUri);
+    payPalLauncher = new PayPalLauncher();
+
+    DataCollector dataCollector = new DataCollector(currentActivity, token);
+    dataCollector.collectDeviceData(currentActivity, new DataCollectorRequest(true), dcResult -> {
+      if (dcResult instanceof DataCollectorResult.Success) {
+        pendingPayPalDeviceData = ((DataCollectorResult.Success) dcResult).getDeviceData();
+      }
     });
 
     PayPalRequest payPalRequest;
     if (options.hasKey("amount")) {
       PayPalCheckoutRequest checkoutRequest = new PayPalCheckoutRequest(options.getString("amount"));
-      if (options.hasKey("currencyCode")) {
-        checkoutRequest.setCurrencyCode(options.getString("currencyCode"));
-      }
+      if (options.hasKey("currencyCode")) checkoutRequest.setCurrencyCode(options.getString("currencyCode"));
       payPalRequest = checkoutRequest;
     } else {
       payPalRequest = new PayPalVaultRequest();
     }
 
     pendingPayPalPromise = promise;
-    payPalClient.tokenizePayPalAccount(currentActivity, payPalRequest);
-    // result delivered via onNewIntent → parseBrowserSwitchResult → onBrowserSwitchResult
+
+    payPalClient.createPaymentAuthRequest(currentActivity, payPalRequest, authRequest -> {
+      if (authRequest instanceof PayPalPaymentAuthRequest.ReadyToLaunch) {
+        PayPalPendingRequest pending = payPalLauncher.launch(
+            (ComponentActivity) currentActivity,
+            (PayPalPaymentAuthRequest.ReadyToLaunch) authRequest
+        );
+        if (pending instanceof PayPalPendingRequest.Started) {
+          pendingPayPalPendingRequest = (PayPalPendingRequest.Started) pending;
+        } else {
+          Promise p = pendingPayPalPromise;
+          pendingPayPalPromise = null;
+          if (p != null) p.reject("PAYPAL_LAUNCH_ERROR", "Failed to launch PayPal");
+        }
+      } else if (authRequest instanceof PayPalPaymentAuthRequest.Failure) {
+        Promise p = pendingPayPalPromise;
+        pendingPayPalPromise = null;
+        if (p != null) p.reject("PAYPAL_ERROR", ((PayPalPaymentAuthRequest.Failure) authRequest).getError().getMessage());
+      }
+    });
   }
 
   @ReactMethod
@@ -356,43 +247,17 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void getDeviceData(final String clientToken, final Promise promise) {
-    BraintreeClient braintreeClient = new BraintreeClient(getCurrentActivity(), clientToken);
-    DataCollector dataCollector = new DataCollector(braintreeClient);
-    dataCollector.collectDeviceData(getCurrentActivity(), (deviceData, error) -> {
-      if (error != null) {
-        promise.reject("ERROR", "Error collecting device data");
-      } else {
-        promise.resolve(deviceData);
-      }
-    });
-  }
-
-  @ReactMethod
-  public void fetchMostRecentPaymentMethod(final String clientToken, final Promise promise) {
-    FragmentActivity currentActivity = (FragmentActivity) getCurrentActivity();
-
+    Activity currentActivity = getCurrentActivity();
     if (currentActivity == null) {
       promise.reject("NO_ACTIVITY", "There is no current activity");
       return;
     }
-
-    if (dropInClient == null) {
-      promise.reject(
-        "DROP_IN_CLIENT_UNINITIALIZED",
-        "Did you forget to call RNBraintreeDropInModule.initDropInClient(this) in MainActivity.onCreate?"
-      );
-      return;
-    }
-
-    RNBraintreeDropInModule.clientToken = clientToken;
-
-    dropInClient.fetchMostRecentPaymentMethod(currentActivity, (dropInResult, error) -> {
-      if (error != null) {
-        promise.reject(error.getMessage(), error.getMessage());
-      } else if (dropInResult == null) {
-        promise.reject("NO_DROP_IN_RESULT", "dropInResult is null");
+    DataCollector dataCollector = new DataCollector(currentActivity, clientToken);
+    dataCollector.collectDeviceData(currentActivity, new DataCollectorRequest(true), result -> {
+      if (result instanceof DataCollectorResult.Success) {
+        promise.resolve(((DataCollectorResult.Success) result).getDeviceData());
       } else {
-        resolvePayment(dropInResult, promise);
+        promise.reject("ERROR", "Error collecting device data");
       }
     });
   }
@@ -403,28 +268,19 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
       promise.reject("NO_CLIENT_TOKEN", "You must provide a client token");
       return;
     }
-
-    if (
-      !cardInfo.hasKey("number") ||
-      !cardInfo.hasKey("expirationMonth") ||
-      !cardInfo.hasKey("expirationYear") ||
-      !cardInfo.hasKey("cvv") ||
-      !cardInfo.hasKey("postalCode")
-    ) {
+    if (!cardInfo.hasKey("number") || !cardInfo.hasKey("expirationMonth") ||
+        !cardInfo.hasKey("expirationYear") || !cardInfo.hasKey("cvv") || !cardInfo.hasKey("postalCode")) {
       promise.reject("INVALID_CARD_INFO", "Invalid card info");
       return;
     }
 
     Activity currentActivity = getCurrentActivity();
-
     if (currentActivity == null) {
       promise.reject("NO_ACTIVITY", "There is no current activity");
       return;
     }
 
-    BraintreeClient braintreeClient = new BraintreeClient(getCurrentActivity(), clientToken);
-    CardClient cardClient = new CardClient(braintreeClient);
-
+    CardClient cardClient = new CardClient(currentActivity, clientToken);
     Card card = new Card();
     card.setNumber(cardInfo.getString("number"));
     card.setExpirationMonth(cardInfo.getString("expirationMonth"));
@@ -432,47 +288,13 @@ public class RNBraintreeDropInModule extends ReactContextBaseJavaModule {
     card.setCvv(cardInfo.getString("cvv"));
     card.setPostalCode(cardInfo.getString("postalCode"));
 
-    cardClient.tokenize(card, (cardNonce, error) -> {
-      if (error != null) {
-        promise.reject(error.getMessage(), error.getMessage());
-      } else if (cardNonce == null) {
-        promise.reject("NO_CARD_NONCE", "Card nonce is null");
-      } else {
-        promise.resolve(cardNonce.getString());
+    cardClient.tokenize(card, result -> {
+      if (result instanceof CardResult.Success) {
+        promise.resolve(((CardResult.Success) result).getNonce().getString());
+      } else if (result instanceof CardResult.Failure) {
+        promise.reject("TOKENIZE_ERROR", ((CardResult.Failure) result).getError().getMessage());
       }
     });
-  }
-
-  private void resolvePayment(DropInResult dropInResult, Promise promise) {
-    String deviceData = dropInResult.getDeviceData();
-    PaymentMethodNonce paymentMethodNonce = dropInResult.getPaymentMethodNonce();
-
-    WritableMap jsResult = Arguments.createMap();
-
-    if (paymentMethodNonce == null) {
-      promise.resolve(null);
-      return;
-    }
-
-    Activity currentActivity = getCurrentActivity();
-    if (currentActivity == null) {
-      promise.reject("NO_ACTIVITY", "There is no current activity");
-      return;
-    }
-
-    DropInPaymentMethod dropInPaymentMethod = dropInResult.getPaymentMethodType();
-    if (dropInPaymentMethod == null) {
-      promise.reject("NO_PAYMENT_METHOD", "There is no payment method");
-      return;
-    }
-
-    jsResult.putString("nonce", paymentMethodNonce.getString());
-    jsResult.putString("type", currentActivity.getString(dropInPaymentMethod.getLocalizedName()));
-    jsResult.putString("description", dropInResult.getPaymentDescription());
-    jsResult.putBoolean("isDefault", paymentMethodNonce.isDefault());
-    jsResult.putString("deviceData", deviceData);
-
-    promise.resolve(jsResult);
   }
 
   @NonNull

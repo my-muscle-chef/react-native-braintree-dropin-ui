@@ -16,7 +16,7 @@ android {
     buildToolsVersion '30.0.2'
 
     defaultConfig {
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 35
         versionCode 1
         versionName "1.0"
@@ -37,21 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.braintreepayments.api:drop-in:6.17.0'
-    implementation 'com.braintreepayments.api:google-pay:4.50.0'
-    implementation 'com.braintreepayments.api:paypal:4.50.0'
+    implementation 'com.braintreepayments.api:google-pay:5.26.0'
+    implementation 'com.braintreepayments.api:paypal:5.26.0'
     implementation 'com.facebook.react:react-native:+'
-}
-
-// https://developers.braintreepayments.com/guides/3d-secure/migration/android/v3
-rootProject.allprojects {
-    repositories {
-        maven {
-            url "https://cardinalcommerceprod.jfrog.io/artifactory/android"
-            credentials {
-                username 'braintree_team_sdk'
-                password 'cmVmdGtuOjAxOjIwMzgzMzI5Nzg6Q3U0eUx5Zzl5TDFnZXpQMXpESndSN2tBWHhJ'
-            }
-        }
-    }
 }

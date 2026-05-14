@@ -7,17 +7,17 @@ Pod::Spec.new do |s|
                    DESC
   s.homepage     = "https://github.com/bamlab/react-native-braintree-payments-drop-in"
   s.license      = "MIT"
-  # s.license      = { :type => "MIT", :file => "./LICENSE" }
   s.author             = { "author" => "lagrange.louis@gmail.com" }
-  s.platform     = :ios, "12.0"
+  s.platform     = :ios, "16.0"
   s.source       = { :git => "https://github.com/BradyShober/react-native-braintree-dropin-ui.git", :tag => "master" }
   s.source_files  = "ios/**/*.{h,m}"
   s.resource_bundles = { 'CardNetworks' => ['ios/CardNetworks.xcassets'] }
   s.requires_arc = true
   s.dependency    'React'
-  s.dependency    'Braintree', "~> 5.27"
-  s.dependency    'BraintreeDropIn', '~> 9.14.0'
-  s.dependency    'Braintree/DataCollector', "~> 5.27"
-  s.dependency    'Braintree/ApplePay', "~> 5.27"
-  s.dependency    'Braintree/Venmo', "~> 5.27"
+  s.dependency    'Braintree/Core',          '~> 7.5'
+  s.dependency    'Braintree/Card',          '~> 7.5'
+  s.dependency    'Braintree/PayPal',        '~> 7.5'
+  s.dependency    'Braintree/ApplePay',      '~> 7.5'
+  s.dependency    'Braintree/DataCollector', '~> 7.5'
+  s.dependency    'Braintree/Venmo',         '~> 7.5'
 end

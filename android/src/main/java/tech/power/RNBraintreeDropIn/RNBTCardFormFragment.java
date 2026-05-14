@@ -29,9 +29,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
 
-import com.braintreepayments.api.BraintreeClient;
 import com.braintreepayments.api.Card;
 import com.braintreepayments.api.CardClient;
+import com.braintreepayments.api.CardNonce;
+import com.braintreepayments.api.CardResult;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.WritableMap;
@@ -429,8 +430,7 @@ public class RNBTCardFormFragment extends DialogFragment {
         progressBar.setVisibility(View.VISIBLE);
         btnSubmit.setEnabled(false);
 
-        BraintreeClient braintreeClient = new BraintreeClient(requireContext(), sClientToken);
-        CardClient cardClient = new CardClient(braintreeClient);
+        CardClient cardClient = new CardClient(requireContext(), sClientToken);
 
         Card card = new Card();
         card.setNumber(rawNumber);
@@ -438,7 +438,7 @@ public class RNBTCardFormFragment extends DialogFragment {
         card.setExpirationYear(expiryYear);
         card.setCvv(cvv);
 
-        cardClient.tokenize(card, (cardNonce, error) -> {
+        cardClient.tokenize(card, result -> {
             if (getActivity() == null) return;
             getActivity().runOnUiThread(() -> {
                 btnSubmit.setText("Add Card");
@@ -448,15 +448,16 @@ public class RNBTCardFormFragment extends DialogFragment {
                 Promise p = sPromise;
                 sPromise = null;
 
-                if (error != null) {
-                    if (p != null) p.reject("TOKENIZE_ERROR", error.getMessage());
+                if (result instanceof CardResult.Failure) {
+                    if (p != null) p.reject("TOKENIZE_ERROR", ((CardResult.Failure) result).getError().getMessage());
                     return;
                 }
-                if (cardNonce == null) {
+                if (!(result instanceof CardResult.Success)) {
                     if (p != null) p.reject("NO_CARD_NONCE", "Card nonce is null");
                     return;
                 }
 
+                CardNonce cardNonce = ((CardResult.Success) result).getNonce();
                 dismiss();
 
                 if (p != null) {

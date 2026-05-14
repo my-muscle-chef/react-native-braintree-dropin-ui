@@ -4,14 +4,6 @@
 
     <application>
         <activity
-            android:name="com.braintreepayments.api.DropInActivity"
-            android:theme="@style/bt_drop_in_activity_theme"
-            android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|uiMode|fontScale|smallestScreenSize"
-            android:exported="true"
-            tools:node="replace" />
-
-        <activity
             android:name=".BraintreeRedirectActivity"
             android:exported="true"
             android:noHistory="true"

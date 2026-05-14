@@ -5,28 +5,22 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 
-import com.braintreepayments.api.DropInActivity;
-
 public class BraintreeRedirectActivity extends Activity {
-    private static final String EXTRA_CHECKOUT_REQUEST = "com.braintreepayments.api.EXTRA_CHECKOUT_REQUEST";
-    private static final String EXTRA_CHECKOUT_REQUEST_BUNDLE = "com.braintreepayments.api.EXTRA_CHECKOUT_REQUEST_BUNDLE";
-    private static final String EXTRA_AUTHORIZATION = "com.braintreepayments.api.EXTRA_AUTHORIZATION";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Uri redirectUri = getIntent().getData();
-        if (redirectUri != null
-                && RNBraintreeDropInModule.dropInActive
-                && RNBraintreeDropInModule.lastDropInRequest != null
-                && RNBraintreeDropInModule.clientToken != null) {
-            Bundle dropInRequestBundle = new Bundle();
-            dropInRequestBundle.putParcelable(EXTRA_CHECKOUT_REQUEST, RNBraintreeDropInModule.lastDropInRequest);
-            Intent dropInIntent = new Intent(this, DropInActivity.class);
-            dropInIntent.putExtra(EXTRA_CHECKOUT_REQUEST_BUNDLE, dropInRequestBundle);
-            dropInIntent.putExtra(EXTRA_AUTHORIZATION, RNBraintreeDropInModule.clientToken);
-            dropInIntent.setData(redirectUri);
-            startActivity(dropInIntent);
+        if (redirectUri != null) {
+            // Forward the deep-link intent to the main activity so React Native's
+            // onNewIntent fires and PayPalLauncher.handleReturnToApp can process it.
+            Intent mainIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (mainIntent != null) {
+                mainIntent.setAction(Intent.ACTION_VIEW);
+                mainIntent.setData(redirectUri);
+                mainIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(mainIntent);
+            }
         }
         finish();
     }
